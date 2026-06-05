@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  web-terminal:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - NODE_ENV=production
+    container_name: web-terminal
+    ports:
+      - "3000:3000"
+    environment:
+      # API Keys for AI tools (set in .env file or pass directly)
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - PORT=3000
+    volumes:
+      # Workspace for repositories (persistent on host)
+      - ./workspace:/workspace
+      # Git configuration persistence
+      - gitconfig:/root/.gitconfig
+      # SSH keys and configuration persistence
+      - ssh:/root/.ssh
+      # Cache for tools and npm/bun
+      - cache:/root/.cache
+      # npm global config and packages persistence
+      - npm-global:/root/.npm-global
+      # Bun cache persistence
+      - bun-cache:/root/.bun/install/cache
+    working_dir: /workspace
+    # Keep container running and interactive
+    tty: true
+    stdin_open: true
+    # Restart policy
+    restart: unless-stopped
+
+volumes:
+  gitconfig:
+    driver: local
+  ssh:
+    driver: local
+  cache:
+    driver: local
+  npm-global:
+    driver: local
+  bun-cache:
+    driver: local
