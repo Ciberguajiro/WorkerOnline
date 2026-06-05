@@ -1,8 +1,10 @@
 # Dependencies
-**/node_modules
+node_modules
+*/node_modules
 
 # Build outputs
-**/dist
+*/dist
+build
 
 # Git
 .git
@@ -11,24 +13,41 @@
 # Docker
 Dockerfile
 docker-compose.yml
+docker-compose.override.yml
 .dockerignore
 
-# Environment files
+# Environment
 .env
+.env.local
+.env.*.local
 
-# IDEs
+# IDE
 .vscode
 .idea
 *.swp
 *.swo
 
-# OS files
+# OS
 .DS_Store
 Thumbs.db
 
 # Logs
 *.log
-logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# Documentation (not needed in build)
+# Testing
+*/coverage
+.nyc_output
+
+# Workspace data (se monta como volumen)
+workspace/
+
+# CI/CD
+.github/
+
+# Misc
 *.md
+!README.md
+VERSION
