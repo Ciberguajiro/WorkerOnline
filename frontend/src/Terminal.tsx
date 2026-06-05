@@ -3,7 +3,13 @@ import { Terminal as XTerm } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import 'xterm/css/xterm.css';
 
-const Terminal: React.FC = () => {
+interface Props {
+  injectedCommand?: string;
+  commandId?: number;
+  onCommandHandled?: () => void;
+}
+
+const Terminal: React.FC<Props> = ({ injectedCommand, commandId = 0, onCommandHandled }) => {
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -56,19 +62,15 @@ const Terminal: React.FC = () => {
     // Determine WebSocket URL
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/ws`;
-    
-    console.log('Connecting to WebSocket:', wsUrl);
-    
+
     // Connect to WebSocket
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
     // Handle WebSocket open
     ws.onopen = () => {
-      console.log('WebSocket connected');
-      term.writeln('\r\n\x1b[32m✓ Connected to Web Terminal\x1b[0m');
-      term.writeln('\x1b[33m  Working directory: /workspace\x1b[0m\r\n');
-      
+      term.write('\r\n\x1b[32m✓ Connected to Web Terminal\x1b[0m\r\n');
+
       // Send initial resize
       const dims = fitAddon.proposeDimensions();
       if (dims) {
@@ -94,16 +96,14 @@ const Terminal: React.FC = () => {
     };
 
     // Handle WebSocket errors
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
-      term.writeln('\r\n\x1b[31m✗ WebSocket error\x1b[0m');
+    ws.onerror = () => {
+      term.write('\r\n\x1b[31m✗ WebSocket error\x1b[0m\r\n');
     };
 
     // Handle WebSocket close
     ws.onclose = () => {
-      console.log('WebSocket closed');
-      term.writeln('\r\n\x1b[31m✗ Connection closed\x1b[0m');
-      term.writeln('\x1b[33m  Refresh the page to reconnect\x1b[0m');
+      term.write('\r\n\x1b[31m✗ Connection closed\x1b[0m\r\n');
+      term.write('\x1b[33m  Refresh the page to reconnect\x1b[0m\r\n');
     };
 
     // Handle user input (send to server)
@@ -133,7 +133,7 @@ const Terminal: React.FC = () => {
           try {
             fitAddonRef.current.fit();
             handleResize();
-          } catch (e) {
+          } catch {
             // Ignore resize errors during initialization
           }
         }
@@ -168,13 +168,35 @@ const Terminal: React.FC = () => {
     };
   }, []);
 
+  // Inject commands from parent (e.g., sidebar buttons)
+  useEffect(() => {
+    if (commandId > 0 && injectedCommand && wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'data', data: injectedCommand }));
+      onCommandHandled?.();
+    }
+  }, [commandId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Also handle command injection when WebSocket connects later
+  useEffect(() => {
+    const ws = wsRef.current;
+    if (!ws || commandId === 0 || !injectedCommand) return;
+
+    const onOpen = () => {
+      ws.send(JSON.stringify({ type: 'data', data: injectedCommand }));
+      onCommandHandled?.();
+    };
+
+    ws.addEventListener('open', onOpen);
+    return () => ws.removeEventListener('open', onOpen);
+  }, [commandId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <div
       ref={terminalRef}
       style={{
         width: '100%',
         height: '100%',
-        padding: '4px',
+        padding: '2px',
         boxSizing: 'border-box',
       }}
     />
