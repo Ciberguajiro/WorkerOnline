@@ -42,7 +42,7 @@ RUN npx tsc
 FROM base AS frontend-build
 
 # Copy frontend package files
-COPY frontend/package.json frontend/tsconfig.json frontend/vite.config.ts frontend/index.html ./
+    COPY frontend/package.json frontend/tsconfig.json frontend/tsconfig.node.json frontend/vite.config.ts frontend/index.html ./
 
 # Install frontend dependencies using Bun
 RUN bun install
