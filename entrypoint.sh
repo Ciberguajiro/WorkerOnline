@@ -31,10 +31,13 @@ fi
 # Lazy-install opencode if not present
 if ! command -v opencode >/dev/null 2>&1; then
     echo "Installing opencode..."
-    npm install -g opencode
+    curl -fsSL https://opencode.ai/install | bash -s -- --no-modify-path
 else
     echo "opencode already installed"
 fi
+
+# Ensure opencode is in PATH (installed to ~/.opencode/bin by the official script)
+export PATH="$HOME/.opencode/bin:${PATH}"
 
 # Lazy-install claude-code if not present (check both 'claude' and 'claude-code' binaries)
 if ! command -v claude >/dev/null 2>&1 && ! command -v claude-code >/dev/null 2>&1; then
