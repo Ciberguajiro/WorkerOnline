@@ -354,6 +354,11 @@ html, body, #root {
 
 .status-dot.disconnected { background-color: #f44747; }
 
+/* ─── Backdrop (mobile overlay) ────────────────────────────────────────────── */
+.sidebar-backdrop {
+  display: none;
+}
+
 /* ─── Terminal Wrapper ─────────────────────────────────────────────────────── */
 .terminal-wrapper {
   flex: 1;
@@ -382,3 +387,103 @@ html, body, #root {
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .error-text { color: #f44747; font-size: 11px; padding: 8px 12px; }
+
+/* ─── Responsive: Mobile (<768px) ──────────────────────────────────────────── */
+@media (max-width: 767px) {
+  .dashboard { position: relative; }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 85vw;
+    max-width: 320px;
+    z-index: 100;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.5);
+    border-right: 1px solid #3c3c3c;
+  }
+
+  .sidebar.collapsed {
+    width: 0;
+    box-shadow: none;
+  }
+
+  .sidebar-inner { padding-top: 8px; }
+
+  .sidebar-toggle {
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 110;
+    width: 34px;
+    height: 34px;
+    font-size: 16px;
+    border-radius: 6px;
+    border-color: #4a4a4a;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  }
+
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 99;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+
+  .sidebar-backdrop.visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .sidebar-section-header {
+    padding: 12px 16px;
+    font-size: 12px;
+  }
+
+  .workspace-item {
+    padding: 10px 16px;
+    font-size: 14px;
+    gap: 10px;
+  }
+
+  .workspace-item .icon { font-size: 16px; width: 20px; }
+
+  .git-btn-row { gap: 8px; padding: 0 16px 10px; }
+
+  .git-btn {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+
+  .git-info { padding: 8px 16px; }
+
+  .git-output { margin: 0 16px 10px; }
+
+  .ai-tool-item {
+    padding: 12px 16px;
+  }
+
+  .ai-tool-name { font-size: 14px; }
+
+  .ai-tool-btn {
+    padding: 6px 16px;
+    font-size: 12px;
+    min-width: 64px;
+  }
+
+  .terminal-wrapper { padding-left: 0; }
+}
+
+/* ─── Responsive: Tablet (768px-1023px) ────────────────────────────────────── */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .sidebar { width: 260px; }
+
+  .sidebar.collapsed { width: 0; }
+
+  .sidebar-inner { width: 260px; }
+}
