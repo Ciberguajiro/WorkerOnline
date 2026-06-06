@@ -1,15 +1,6 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
+import { ToastContext } from '../contexts/ToastContext';
 import ToastComponent, { ToastItem } from './Toast';
-
-interface ToastContextValue {
-  addToast: (type: ToastItem['type'], message: string) => void;
-  removeToast: (id: string) => void;
-}
-
-const ToastContext = createContext<ToastContextValue>({
-  addToast: () => {},
-  removeToast: () => {},
-});
 
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
@@ -34,8 +25,6 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     </ToastContext.Provider>
   );
 };
-
-export const useToast = () => useContext(ToastContext);
 
 const styles: Record<string, React.CSSProperties> = {
   container: {

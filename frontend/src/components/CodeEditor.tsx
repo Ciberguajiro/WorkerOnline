@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { EditorView, keymap } from '@codemirror/view';
 import { EditorState } from '@codemirror/state';
 import { defaultKeymap, indentWithTab } from '@codemirror/commands';
@@ -7,8 +7,8 @@ import { javascript } from '@codemirror/lang-javascript';
 import { json } from '@codemirror/lang-json';
 import { markdown } from '@codemirror/lang-markdown';
 import { python } from '@codemirror/lang-python';
-import { useTheme } from '../ThemeProvider';
-import { authFetch } from '../contexts/AuthContext';
+import { useTheme } from '../hooks/useTheme';
+import { authFetch } from '../hooks/useAuth';
 
 interface OpenFile {
   path: string;
@@ -55,6 +55,43 @@ const CodeEditor: React.FC<Props> = ({ token, activeFile, onActiveFileChange, on
   const getExtension = (path: string) => path.split('.').pop()?.toLowerCase() || 'txt';
 
   // Load file when activeFile changes
+  const initEditor = useCallback((file: OpenFile) => {
+    if (!editorRef.current) return;
+
+    if (viewRef.current) {
+      viewRef.current.destroy();
+    }
+
+    const extensions = [
+      keymap.of([...defaultKeymap, indentWithTab]),
+      getLanguage(file.path),
+      EditorView.updateListener.of((update) => {
+        if (update.docChanged) {
+          const newContent = update.state.doc.toString();
+          setFiles((prev) =>
+            prev.map((f) => (f.path === file.path ? { ...f, content: newContent } : f))
+          );
+        }
+      }),
+    ];
+
+    if (theme === 'dark') {
+      extensions.push(oneDark);
+    }
+
+    const state = EditorState.create({
+      doc: file.content,
+      extensions,
+    });
+
+    const view = new EditorView({
+      state,
+      parent: editorRef.current,
+    });
+
+    viewRef.current = view;
+  }, [theme]);
+
   useEffect(() => {
     if (!activeFile) {
       if (viewRef.current) {
@@ -91,44 +128,7 @@ const CodeEditor: React.FC<Props> = ({ token, activeFile, onActiveFileChange, on
       .finally(() => {
         setLoading(false);
       });
-  }, [activeFile]);
-
-  const initEditor = (file: OpenFile) => {
-    if (!editorRef.current) return;
-
-    if (viewRef.current) {
-      viewRef.current.destroy();
-    }
-
-    const extensions = [
-      keymap.of([...defaultKeymap, indentWithTab]),
-      getLanguage(file.path),
-      EditorView.updateListener.of((update) => {
-        if (update.docChanged) {
-          const newContent = update.state.doc.toString();
-          setFiles((prev) =>
-            prev.map((f) => (f.path === file.path ? { ...f, content: newContent } : f))
-          );
-        }
-      }),
-    ];
-
-    if (theme === 'dark') {
-      extensions.push(oneDark);
-    }
-
-    const state = EditorState.create({
-      doc: file.content,
-      extensions,
-    });
-
-    const view = new EditorView({
-      state,
-      parent: editorRef.current,
-    });
-
-    viewRef.current = view;
-  };
+  }, [activeFile, files, initEditor, token]);
 
   const handleSave = async () => {
     const currentFile = files.find((f) => f.path === activeFile);

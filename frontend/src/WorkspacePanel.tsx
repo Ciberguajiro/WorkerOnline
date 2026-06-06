@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { authFetch } from './contexts/AuthContext';
+import { authFetch } from './hooks/useAuth';
 import WorkspaceModal from './components/WorkspaceModal';
 
 interface WorkspaceItem {

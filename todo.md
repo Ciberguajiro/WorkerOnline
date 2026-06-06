@@ -141,5 +141,11 @@
 - **CodeMirror**: Editor funcional con soporte para JS, TS, JSON, Markdown, Python. Temas dark/light integrados. El bundle aumentó a ~1MB (996KB) por CodeMirror. Recomendado: code splitting para CodeMirror.
 - **Validación de comandos**: `/api/exec` bloquea caracteres peligrosos (`;`, `&&`, `||`, `|`, etc.) como medida de seguridad básica temporal.
 - **Logging**: El logger actual es básico (console.log con formato). Para producción se recomienda migrar a `pino` o `winston`.
-- **ESLint/Prettier**: Configurados en `frontend/` pero no en `backend/` (falta añadir config similar en backend).
+- **ESLint/Prettier**: Configurados en `frontend/` ✅ (0 errores, 0 warnings). Hooks separados a archivos independientes (`useAuth.ts`, `useToast.ts`, `useTheme.ts`) para Fast Refresh.
+- **TypeScript**: Declaraciones de tipos para `.css` creadas (`src/types/css.d.ts`). Todos los errores de tipo corregidos.
 - **Tema light**: El UI del sidebar y editor cambia con CSS variables. El terminal (xterm.js) sigue con colores hardcoded dark - necesitaría actualizar `term.options.theme` dinámicamente.
+- **Lint Fixes (2026-06-06)**: Se corrigieron todos los errores de linting:
+  - Fast Refresh: Hooks separados de componentes (useAuth, useToast, useTheme)
+  - useEffect deps: Añadidas dependencias faltantes en Dashboard.tsx y CodeEditor.tsx
+  - `any` types: Reemplazados por tipos específicos en GitPanel.tsx y useSound.ts
+  - CSS imports: Creado `src/types/css.d.ts` para declaraciones de módulos CSS

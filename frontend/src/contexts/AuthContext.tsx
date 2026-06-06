@@ -1,26 +1,9 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { AuthContext } from './AuthContextValue';
 
 interface AuthUser {
   username: string;
 }
-
-interface AuthContextValue {
-  isAuthenticated: boolean;
-  user: AuthUser | null;
-  token: string | null;
-  login: (username: string, password: string) => Promise<boolean>;
-  logout: () => void;
-  isLoading: boolean;
-}
-
-const AuthContext = createContext<AuthContextValue>({
-  isAuthenticated: false,
-  user: null,
-  token: null,
-  login: async () => false,
-  logout: () => {},
-  isLoading: true,
-});
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [token, setToken] = useState<string | null>(null);
@@ -95,17 +78,4 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       {children}
     </AuthContext.Provider>
   );
-};
-
-export const useAuth = () => useContext(AuthContext);
-
-// Helper for authenticated fetch
-export function authFetch(token: string, input: string, init?: RequestInit): Promise<Response> {
-  return fetch(input, {
-    ...init,
-    headers: {
-      ...init?.headers,
-      Authorization: `Bearer ${token}`,
-    },
-  });
 }

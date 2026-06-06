@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 
 interface Props {
   isOpen: boolean;

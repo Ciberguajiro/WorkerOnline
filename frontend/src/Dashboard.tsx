@@ -5,8 +5,8 @@ import ThemeToggle from './components/ThemeToggle';
 import ShortcutsModal from './components/ShortcutsModal';
 import LoginModal from './components/LoginModal';
 import CodeEditor from './components/CodeEditor';
-import { useAuth, authFetch } from './contexts/AuthContext';
-import { useToast } from './components/ToastContainer';
+import { useAuth, authFetch } from './hooks/useAuth';
+import { useToast } from './hooks/useToast';
 import { useSound } from './hooks/useSound';
 import './styles.css';
 
@@ -45,9 +45,12 @@ const Dashboard: React.FC = () => {
       setLoginOpen(true);
     } else if (isAuthenticated) {
       setLoginOpen(false);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       addToast('success', 'Login successful');
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       play('success');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading, isAuthenticated]);
 
   const handleToggle = useCallback(() => {

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { authFetch } from './contexts/AuthContext';
+import { authFetch } from './hooks/useAuth';
 
 interface Props {
   workspacePath: string;
@@ -39,8 +39,9 @@ const GitPanel: React.FC<Props> = ({ workspacePath, branch, isGitRepo, token }) 
       if (data.exitCode !== 0 || data.error) {
         setIsError(true);
       }
-    } catch (err: any) {
-      setOutput((prev) => `${prev}Error: ${err.message || 'Failed to execute'}\n`);
+    } catch (err: unknown) {
+      const error = err instanceof Error ? err.message : 'Failed to execute';
+      setOutput((prev) => `${prev}Error: ${error}\n`);
       setIsError(true);
     } finally {
       setIsRunning(false);

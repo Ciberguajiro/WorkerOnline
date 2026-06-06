@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { authFetch } from '../contexts/AuthContext';
+import { authFetch } from '../hooks/useAuth';
 
 interface FileTreeItem {
   name: string;
