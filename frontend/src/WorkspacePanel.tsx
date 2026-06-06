@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { authFetch } from './contexts/AuthContext';
 
 interface WorkspaceItem {
   name: string;
@@ -12,9 +13,10 @@ interface Props {
   onSelectWorkspace: (path: string) => void;
   onWorkspaceChange: (item: WorkspaceItem | null) => void;
   onFileSelect?: (path: string) => void;
+  token: string;
 }
 
-const WorkspacePanel: React.FC<Props> = ({ selectedWorkspace, onSelectWorkspace, onWorkspaceChange, onFileSelect }) => {
+const WorkspacePanel: React.FC<Props> = ({ selectedWorkspace, onSelectWorkspace, onWorkspaceChange, onFileSelect, token }) => {
   const [workspaces, setWorkspaces] = useState<WorkspaceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -24,7 +26,7 @@ const WorkspacePanel: React.FC<Props> = ({ selectedWorkspace, onSelectWorkspace,
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/workspaces');
+      const res = await authFetch(token, '/api/workspaces');
       const data = await res.json();
       setWorkspaces(data.workspaces || []);
     } catch {

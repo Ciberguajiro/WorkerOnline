@@ -133,6 +133,7 @@
 
 ### 📝 Notas técnicas
 - **Autenticación**: El sistema usa JWT con 1 usuario hardcodeado en variables de entorno. El token se envía en `Authorization: Bearer <token>` para REST y `?token=xxx` para WebSocket.
+- **Bug Fix (2026-06-06)**: Se corrigió un bug donde los componentes `WorkspacePanel` y `GitPanel` usaban `fetch` directo en lugar de `authFetch` (que incluye el header `Authorization: Bearer <token>`). Esto causaba "Unauthorized - No token provided" después de login exitoso. El fix fue propagar el `token` desde `Dashboard` → `Sidebar` → `WorkspacePanel`/`GitPanel` y usar `authFetch` en todas las llamadas a la API.
 - **CodeMirror**: Editor funcional con soporte para JS, TS, JSON, Markdown, Python. Temas dark/light integrados. El bundle aumentó a ~1MB (996KB) por CodeMirror. Recomendado: code splitting para CodeMirror.
 - **Validación de comandos**: `/api/exec` bloquea caracteres peligrosos (`;`, `&&`, `||`, `|`, etc.) como medida de seguridad básica temporal.
 - **Logging**: El logger actual es básico (console.log con formato). Para producción se recomienda migrar a `pino` o `winston`.

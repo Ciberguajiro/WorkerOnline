@@ -43,11 +43,13 @@ const Sidebar: React.FC<Props> = ({
             selectedWorkspace={selectedWorkspace}
             onSelectWorkspace={onSelectWorkspace}
             onWorkspaceChange={setCurrentWs}
+            token={token}
           />
           <GitPanel
             workspacePath={selectedWorkspace}
             branch={currentWs?.branch || ''}
             isGitRepo={currentWs?.isGitRepo || false}
+            token={token}
           />
           <AIToolsPanel onInjectCommand={onInjectCommand} />
           {selectedWorkspace && (

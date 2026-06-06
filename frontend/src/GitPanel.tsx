@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
+import { authFetch } from './contexts/AuthContext';
 
 interface Props {
   workspacePath: string;
   branch: string;
   isGitRepo: boolean;
+  token: string;
 }
 
 interface ExecResult {
@@ -12,7 +14,7 @@ interface ExecResult {
   error: string | null;
 }
 
-const GitPanel: React.FC<Props> = ({ workspacePath, branch, isGitRepo }) => {
+const GitPanel: React.FC<Props> = ({ workspacePath, branch, isGitRepo, token }) => {
   const [open, setOpen] = useState(true);
   const [output, setOutput] = useState('');
   const [outputVisible, setOutputVisible] = useState(false);
@@ -26,7 +28,7 @@ const GitPanel: React.FC<Props> = ({ workspacePath, branch, isGitRepo }) => {
     setIsError(false);
 
     try {
-      const res = await fetch('/api/exec', {
+      const res = await authFetch(token, '/api/exec', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cmd, cwd: workspacePath }),
