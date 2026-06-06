@@ -5,14 +5,51 @@ import path from 'path';
 import fs from 'fs';
 import { exec, execSync } from 'child_process';
 import { TerminalSession } from './terminal';
+import { authRoutes, requireAuth, verifyToken } from './auth';
+import { filesRoutes } from './files';
 
 const app = express();
 const server = createServer(app);
 const PORT = process.env.PORT || 3000;
+const WS_TIMEOUT_MS = parseInt(process.env.WS_TIMEOUT_MS || '900000', 10); // 15 min default
 
 app.use(express.json());
 
 const WORKSPACE_DIR = '/workspace';
+
+// ─── Environment Validation ───────────────────────────────────────────────────
+const requiredEnv = ['NODE_ENV'];
+const optionalEnv = ['GITHUB_TOKEN', 'ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'PORT', 'JWT_SECRET', 'ADMIN_USERNAME', 'ADMIN_PASSWORD'];
+
+function validateEnv() {
+  const missing = requiredEnv.filter((key) => !process.env[key]);
+  if (missing.length > 0) {
+    console.warn(`⚠️ Missing required env vars: ${missing.join(', ')}`);
+  }
+  const set = optionalEnv.filter((key) => process.env[key]);
+  console.log(`🔧 Environment: ${set.length}/${optionalEnv.length} optional vars set`);
+}
+
+validateEnv();
+
+// ─── Structured Logging ───────────────────────────────────────────────────────
+function log(level: string, message: string, meta?: Record<string, unknown>) {
+  const timestamp = new Date().toISOString();
+  const requestId = meta?.requestId || 'system';
+  const extra = meta ? JSON.stringify(meta) : '';
+  console.log(`[${timestamp}] [${level}] [${requestId}] ${message} ${extra}`);
+}
+
+// ─── Health Check ─────────────────────────────────────────────────────────────
+app.get('/api/health', (_req, res) => {
+  res.json({ status: 'ok', uptime: process.uptime(), version: '0.1.5' });
+});
+
+// ─── Request ID Middleware ──────────────────────────────────────────────────────
+app.use((req, res, next) => {
+  (req as any).requestId = Math.random().toString(36).substring(2, 15);
+  next();
+});
 
 // Serve static frontend files
 const frontendPath = path.join(__dirname, '../../frontend/dist');
@@ -27,7 +64,7 @@ interface WorkspaceItem {
   branch: string;
 }
 
-app.get('/api/workspaces', (_req, res) => {
+app.get('/api/workspaces', requireAuth, (_req, res) => {
   try {
     const items: WorkspaceItem[] = [];
     
@@ -64,17 +101,31 @@ app.get('/api/workspaces', (_req, res) => {
   }
 });
 
-app.post('/api/exec', (req, res) => {
+app.post('/api/exec', requireAuth, (req, res) => {
   const { cmd, cwd } = req.body as { cmd?: string; cwd?: string };
-  
-  if (!cmd || typeof cmd !== 'string') {
+  const requestId = (req as any).requestId;
+
+  if (!cmd || typeof cmd !== 'string' || cmd.length > 4096) {
+    log('warn', 'Invalid exec request', { requestId, reason: !cmd ? 'missing' : 'invalid' });
     res.status(400).json({ error: 'Missing or invalid command' });
+    return;
+  }
+
+  // Basic command safety: block dangerous characters
+  const blocked = [';', '&&', '||', '|', '`', '$', '>', '<'];
+  const hasBlocked = blocked.some((c) => cmd.includes(c));
+  if (hasBlocked) {
+    log('warn', 'Blocked command characters detected', { requestId, cmd: cmd.substring(0, 50) });
+    res.status(400).json({ error: 'Command contains blocked characters' });
     return;
   }
 
   const workDir = cwd && fs.existsSync(cwd) ? cwd : WORKSPACE_DIR;
 
+  log('info', `Executing command`, { requestId, cmd: cmd.substring(0, 50) });
+
   exec(cmd, { cwd: workDir, timeout: 30000, maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
+    log('info', `Command finished`, { requestId, exitCode: error ? (error as any).code || 1 : 0 });
     res.json({
       output: stdout + (stderr ? '\n' + stderr : ''),
       exitCode: error && 'code' in error ? (error as any).code : 0,
@@ -83,56 +134,118 @@ app.post('/api/exec', (req, res) => {
   });
 });
 
+// ─── Auth Routes ──────────────────────────────────────────────────────────────
+authRoutes(app);
+
+// ─── Files Routes ─────────────────────────────────────────────────────────────
+filesRoutes(app);
+
 // Catch-all: serve index.html for all non-static, non-API routes (SPA support)
 app.get('*', (_req, res) => {
   res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
 // Create WebSocket server
-const wss = new WebSocketServer({ 
+const wss = new WebSocketServer({
   server,
   path: '/ws',
-  perMessageDeflate: false // Disable for better compatibility
+  perMessageDeflate: true, // Enable for better compression
 });
+
+// Track active sessions for graceful shutdown
+const activeSessions = new Set<WebSocket>();
 
 // Handle WebSocket connections
 wss.on('connection', (ws: WebSocket, req) => {
-  console.log('New WebSocket connection from:', req.socket.remoteAddress);
-  
+  const requestId = Math.random().toString(36).substring(2, 15);
+  const clientIp = req.socket.remoteAddress;
+
+  // Verify token from query param
+  const url = new URL(req.url || '', `http://${req.headers.host}`);
+  const token = url.searchParams.get('token');
+
+  if (!token) {
+    log('warn', 'WebSocket connection rejected - no token', { requestId, clientIp });
+    ws.close(1008, 'Authentication required');
+    return;
+  }
+
+  const decoded = verifyToken(token);
+  if (!decoded) {
+    log('warn', 'WebSocket connection rejected - invalid token', { requestId, clientIp });
+    ws.close(1008, 'Invalid token');
+    return;
+  }
+
+  activeSessions.add(ws);
+  log('info', 'New WebSocket connection', { requestId, clientIp, user: decoded.username });
+
+  // Inactivity timeout
+  let lastActivity = Date.now();
+  const activityInterval = setInterval(() => {
+    if (Date.now() - lastActivity > WS_TIMEOUT_MS) {
+      log('info', 'WebSocket timed out due to inactivity', { requestId });
+      ws.close(1001, 'Inactivity timeout');
+      clearInterval(activityInterval);
+    }
+  }, 60000);
+
+  ws.on('message', () => {
+    lastActivity = Date.now();
+  });
+
+  ws.on('close', () => {
+    activeSessions.delete(ws);
+    clearInterval(activityInterval);
+    log('info', 'WebSocket connection closed', { requestId });
+  });
+
+  ws.on('error', (error) => {
+    log('error', 'WebSocket error', { requestId, error: (error as Error).message });
+  });
+
   try {
     const terminal = new TerminalSession(ws);
-    console.log('Terminal session created successfully');
+    log('info', 'Terminal session created successfully', { requestId });
   } catch (error) {
-    console.error('Failed to create terminal session:', error);
+    log('error', 'Failed to create terminal session', { requestId, error: (error as Error).message });
     ws.close(1011, 'Failed to create terminal');
   }
 });
 
 // Error handling for WebSocket server
 wss.on('error', (error) => {
-  console.error('WebSocket server error:', error);
+  log('error', 'WebSocket server error', { error: error.message });
 });
 
 // Start server
 server.listen(PORT, () => {
-  console.log(`🚀 Web Terminal Server running on http://localhost:${PORT}`);
-  console.log(`📡 WebSocket endpoint: ws://localhost:${PORT}/ws`);
-  console.log(`💻 Working directory: /workspace`);
+  log('info', `🚀 Web Terminal Server running on http://localhost:${PORT}`);
+  log('info', `📡 WebSocket endpoint: ws://localhost:${PORT}/ws`);
+  log('info', `💻 Working directory: /workspace`);
 });
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully');
-  server.close(() => {
-    console.log('Server closed');
-    process.exit(0);
-  });
-});
+function gracefulShutdown(signal: string) {
+  log('info', `${signal} received, shutting down gracefully`);
+  log('info', `Closing ${activeSessions.size} active WebSocket connections`);
 
-process.on('SIGINT', () => {
-  console.log('SIGINT received, shutting down gracefully');
+  for (const ws of activeSessions) {
+    ws.close(1001, 'Server shutting down');
+  }
+  activeSessions.clear();
+
   server.close(() => {
-    console.log('Server closed');
+    log('info', 'Server closed');
     process.exit(0);
   });
-});
+
+  // Force exit after 10s
+  setTimeout(() => {
+    log('error', 'Forced shutdown after timeout');
+    process.exit(1);
+  }, 10000);
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));

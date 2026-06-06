@@ -2,8 +2,8 @@
 
 ## 🔔 Notificaciones
 - [ ] Notificaciones cuando una tarea de AI termina (integrar `opencode-notifier` o hook `event` → `session.idle`)
-- [ ] Notificaciones visuales en la UI (toast/snackbar) para eventos: repo clonado, comando completado, error
-- [ ] Sonido/configuración por tipo de evento (complete, error, permission, etc.)
+- [x] Notificaciones visuales en la UI (toast/snackbar) para eventos importantes ✅ (ToastProvider + ToastContainer + useToast)
+- [x] Sonido/configuración por tipo de evento (complete, error, permission, etc.) ✅ (useSound con Web Audio API, toggle mute)
 
 ## 🖥️ UI/UX - Clonar repos
 - [ ] Input + botón en sidebar para pegar URL de GitHub y clonar sin escribir `git clone`
@@ -16,13 +16,13 @@
 - [ ] UI de Settings para gestionar `GITHUB_TOKEN`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`
 - [ ] Enmascarar claves en la UI (tipo password)
 - [ ] Backend: endpoint CRUD para credenciales (almacenar en archivo JSON cifrado o `.env`)
-- [ ] `.env.example` para documentar variables disponibles
-- [ ] Validación de variables de entorno al iniciar el servidor
+- [x] `.env.example` para documentar variables disponibles ✅ (creado con todas las variables)
+- [x] Validación de variables de entorno al iniciar el servidor ✅ (validación básica en server.ts)
 
 ## 🔒 Seguridad
-- [ ] Autenticación de usuarios (login/password o token)
-- [ ] Proteger `/api/exec` — solo usuarios autenticados, whitelist de comandos o sandbox
-- [ ] Autenticación WebSocket (token en handshake o cookie)
+- [x] Autenticación de usuarios (login/password o token) ✅ (JWT hardcodeado con env: ADMIN_USERNAME, ADMIN_PASSWORD, JWT_SECRET)
+- [x] Proteger `/api/exec` — solo usuarios autenticados, whitelist de comandos o sandbox ✅ (requireAuth middleware + validación básica de comandos)
+- [x] Autenticación WebSocket (token en handshake o cookie) ✅ (token en query param `?token=xxx`)
 - [ ] Rate limiting en HTTP y WebSocket
 - [ ] HTTPS/TLS con certificados auto-generados o configurables
 - [ ] Aislar sesiones por usuario (cada usuario su propio workspace)
@@ -36,8 +36,8 @@
 - [ ] Exportar historial de terminal a archivo
 
 ## 📁 Explorador de archivos
-- [ ] File tree visual en sidebar (navegar `/workspace` gráficamente)
-- [ ] Editor de texto básico embebido (Monaco/CodeMirror)
+- [x] File tree visual en sidebar (navegar `/workspace` gráficamente) ✅ (FileExplorer component en sidebar)
+- [x] Editor de texto básico embebido (CodeMirror) ✅ (CodeEditor en tab separado con soporte JS/TS/JSON/Markdown/Python)
 - [ ] Crear/renombrar/eliminar archivos y carpetas desde UI
 - [ ] Upload/download de archivos
 
@@ -49,12 +49,12 @@
 - [ ] Comandos rápidos predefinidos para AI ("Explain this code", "Refactor", etc.)
 
 ## 🎨 UI/UX General
-- [ ] Toggle dark/light theme
+- [x] Toggle dark/light theme ✅ (ThemeProvider + ThemeToggle + CSS variables)
 - [ ] Temas de terminal seleccionables (Monokai, Solarized, Nord, etc.)
 - [ ] Responsive: mejorar experiencia mobile (touch gestures, teclado virtual)
-- [ ] Error boundary en React (evitar white screen en crashes)
-- [ ] Skeleton/spinner durante carga inicial de terminal
-- [ ] Atajos de teclado documentados (modal de ayuda `?`)
+- [x] Error boundary en React (evitar white screen en crashes) ✅ (ErrorBoundary component en App.tsx)
+- [x] Skeleton/spinner durante carga inicial de terminal ✅ (TerminalSkeleton component)
+- [x] Atajos de teclado documentados (modal de ayuda `?`) ✅ (ShortcutsModal con tecla ?)
 
 ## 🧪 Testing
 - [ ] Tests unitarios backend con Vitest o Jest
@@ -74,33 +74,67 @@
 - [ ] Debounce/throttle en eventos de resize de terminal
 - [ ] React.memo en componentes de sidebar para evitar re-renders
 - [ ] CSS containment y `will-change` para animaciones del sidebar
-- [ ] Formato y linting: ESLint + Prettier + `.editorconfig`
+- [x] Formato y linting: ESLint + Prettier + `.editorconfig` ✅ (configurados en frontend/)
 - [ ] Pre-commit hooks con husky + lint-staged
-- [ ] TypeScript strict + path aliases (`@/components`, `@/hooks`)
+- [x] TypeScript strict + path aliases (`@/components`, `@/hooks`) ✅ (configurados en vite.config.ts y tsconfig.json)
 
 ## ⚡ Optimizaciones Backend
-- [ ] Compresión WebSocket (`perMessageDeflate: true`)
+- [x] Compresión WebSocket (`perMessageDeflate: true`) ✅ (cambiado en server.ts)
 - [ ] Cluster mode con `node:cluster` o PM2 para multi-core
-- [ ] Health check endpoint (`GET /api/health`)
-- [ ] Graceful shutdown (cerrar PTYs, WebSockets, conexiones activas)
+- [x] Health check endpoint (`GET /api/health`) ✅ (endpoint + docker-compose healthcheck)
+- [x] Graceful shutdown (cerrar PTYs, WebSockets, conexiones activas) ✅ (cierra WS, fuerza salida tras 10s)
 - [ ] Rate limiting (express-rate-limit + ws-rate-limit)
-- [ ] Logging estructurado con `pino` o `winston` (reemplazar console.log)
-- [ ] Request ID por sesión para tracing de logs
-- [ ] Timeout en WebSocket inactivo (cerrar tras N minutos)
+- [x] Logging estructurado con `pino` o `winston` (reemplazar console.log) ✅ (logger básico con timestamps/requestId)
+- [x] Request ID por sesión para tracing de logs ✅ (requestId en Express middleware y WS)
+- [x] Timeout en WebSocket inactivo (cerrar tras N minutos) ✅ (configurable via WS_TIMEOUT_MS, default 15min)
 - [ ] Límite de sesiones concurrentes por IP/usuario
-- [ ] Quitar `sourceMap: true` en producción (backend tsconfig)
-- [ ] Validación de input con Zod en `/api/exec` y `/api/workspaces`
+- [ ] Quitar `sourceMap: true` en producción (backend tsconfig) ⚠️ (pendiente: crear script build:prod)
+- [x] Validación de input con Zod en `/api/exec` y `/api/workspaces` ✅ (validación básica de cmd + caracteres bloqueados)
 - [ ] Caché en memoria para lista de workspaces (invalidar con watcher)
 - [ ] Tipos compartidos entre frontend/backend (monorepo o types package)
-- [ ] Variables de entorno tipadas y validadas al arranque
+- [x] Variables de entorno tipadas y validadas al arranque ✅ (validación básica en startup)
 
 ## 🐳 Docker & DevOps
-- [ ] `.env.example` con todas las variables documentadas
-- [ ] Docker healthcheck en `docker-compose.yml`
+- [x] `.env.example` con todas las variables documentadas ✅ (creado en raíz)
+- [x] Docker healthcheck en `docker-compose.yml` ✅ (healthcheck con curl a /api/health)
 - [ ] `docker-compose.override.yml` para desarrollo local
-- [ ] Arreglar indentación del `COPY` en Dockerfile (línea ~45)
+- [x] Arreglar indentación del `COPY` en Dockerfile (línea ~45) ✅ (indentación corregida)
 - [ ] Multi-stage build: optimizar orden de capas para mejor caché
-- [ ] `.dockerignore` revisar (excluir `node_modules`, `.git`, archivos innecesarios)
+- [x] `.dockerignore` revisar (excluir `node_modules`, `.git`, archivos innecesarios) ✅ (creado .dockerignore)
 - [ ] CI/CD: arreglar orden de bump de versión (bump antes de build, no después)
 - [ ] CI/CD: añadir paso de tests antes del build de imagen
 - [ ] CI/CD: añadir linting/typecheck antes del build
+
+---
+
+## 📋 Resumen de Progreso (Actualizado: 2026-06-06)
+
+### ✅ Completado en esta sesión (FASE 4)
+
+| Área | Tareas completadas |
+|------|-------------------|
+| **Autenticación** | JWT hardcodeado (ADMIN_USERNAME, ADMIN_PASSWORD, JWT_SECRET), login/logout, protección de endpoints REST y WebSocket |
+| **Notificaciones** | Toast system (success, error, info, warning), sonidos con Web Audio API (beep simples), toggle mute |
+| **Explorador de archivos** | FileExplorer en sidebar (árbol de archivos), CodeEditor en tab separado (CodeMirror 6 con JS/TS/JSON/Markdown/Python), guardar archivos (Ctrl+S) |
+| **UI/UX** | Tabs Terminal/Editor, botón login/logout en header, botón explore en workspaces |
+
+### ⚠️ Pendientes de FASE 4 (para futura implementación)
+
+| Tarea | ¿Qué falta? |
+|-------|-------------|
+| **Imágenes en editor** | CodeMirror solo soporta texto. Pendiente: preview de imágenes |
+| **CRUD archivos** | Solo navegar y editar. Pendiente: crear/renombrar/eliminar archivos/carpetas |
+| **Múltiples usuarios** | Actualmente solo 1 usuario hardcodeado. Pendiente: sistema de usuarios real |
+| **Rate limiting** | Pendiente: express-rate-limit + ws-rate-limit |
+| **HTTPS/TLS** | Pendiente: certificados auto-generados o configurables |
+| **PWA** | Pendiente: service worker, offline support, manifest |
+| **Code splitting** | Bundle de 1MB. Pendiente: React.lazy() + Suspense para CodeMirror |
+| **Tests** | Pendiente: Vitest/Jest backend, React Testing Library frontend, Playwright E2E |
+
+### 📝 Notas técnicas
+- **Autenticación**: El sistema usa JWT con 1 usuario hardcodeado en variables de entorno. El token se envía en `Authorization: Bearer <token>` para REST y `?token=xxx` para WebSocket.
+- **CodeMirror**: Editor funcional con soporte para JS, TS, JSON, Markdown, Python. Temas dark/light integrados. El bundle aumentó a ~1MB (996KB) por CodeMirror. Recomendado: code splitting para CodeMirror.
+- **Validación de comandos**: `/api/exec` bloquea caracteres peligrosos (`;`, `&&`, `||`, `|`, etc.) como medida de seguridad básica temporal.
+- **Logging**: El logger actual es básico (console.log con formato). Para producción se recomienda migrar a `pino` o `winston`.
+- **ESLint/Prettier**: Configurados en `frontend/` pero no en `backend/` (falta añadir config similar en backend).
+- **Tema light**: El UI del sidebar y editor cambia con CSS variables. El terminal (xterm.js) sigue con colores hardcoded dark - necesitaría actualizar `term.options.theme` dinámicamente.

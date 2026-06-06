@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import WorkspacePanel from './WorkspacePanel';
 import GitPanel from './GitPanel';
 import AIToolsPanel from './AIToolsPanel';
+import FileExplorer from './components/FileExplorer';
 
 interface WorkspaceItem {
   name: string;
@@ -16,6 +17,8 @@ interface Props {
   selectedWorkspace: string;
   onSelectWorkspace: (path: string) => void;
   onInjectCommand: (cmd: string) => void;
+  onFileSelect: (path: string) => void;
+  token: string;
 }
 
 const Sidebar: React.FC<Props> = ({
@@ -24,6 +27,8 @@ const Sidebar: React.FC<Props> = ({
   selectedWorkspace,
   onSelectWorkspace,
   onInjectCommand,
+  onFileSelect,
+  token,
 }) => {
   const [currentWs, setCurrentWs] = useState<WorkspaceItem | null>(null);
 
@@ -45,6 +50,13 @@ const Sidebar: React.FC<Props> = ({
             isGitRepo={currentWs?.isGitRepo || false}
           />
           <AIToolsPanel onInjectCommand={onInjectCommand} />
+          {selectedWorkspace && (
+            <FileExplorer
+              workspace={selectedWorkspace.split('/').pop() || ''}
+              token={token}
+              onFileSelect={onFileSelect}
+            />
+          )}
         </div>
       </div>
     </>

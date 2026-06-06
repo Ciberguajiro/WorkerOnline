@@ -11,9 +11,10 @@ interface Props {
   selectedWorkspace: string;
   onSelectWorkspace: (path: string) => void;
   onWorkspaceChange: (item: WorkspaceItem | null) => void;
+  onFileSelect?: (path: string) => void;
 }
 
-const WorkspacePanel: React.FC<Props> = ({ selectedWorkspace, onSelectWorkspace, onWorkspaceChange }) => {
+const WorkspacePanel: React.FC<Props> = ({ selectedWorkspace, onSelectWorkspace, onWorkspaceChange, onFileSelect }) => {
   const [workspaces, setWorkspaces] = useState<WorkspaceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -64,6 +65,20 @@ const WorkspacePanel: React.FC<Props> = ({ selectedWorkspace, onSelectWorkspace,
               <span className="icon">{ws.isGitRepo ? '🔀' : '📂'}</span>
               <span>{ws.name}</span>
               {ws.branch && <span className="branch">{ws.branch}</span>}
+              {onFileSelect && (
+                <button
+                  className="workspace-explore"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelectWorkspace(ws.path);
+                    onWorkspaceChange(ws);
+                    // Open first file or trigger explore
+                  }}
+                  title="Explore files"
+                >
+                  📂
+                </button>
+              )}
             </div>
           ))}
         </div>
