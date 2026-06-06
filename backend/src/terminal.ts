@@ -24,6 +24,7 @@ export class TerminalSession {
         TERM: 'xterm-256color',
         COLORTERM: 'truecolor',
         SHELL: '/bin/bash',
+        PATH: `/root/.npm-global/bin:${process.env.HOME || '/root'}/.opencode/bin:${process.env.PATH || ''}`,
       } as { [key: string]: string },
     });
 
