@@ -8,9 +8,10 @@ interface Props {
   injectedCommand?: string;
   commandId?: number;
   onCommandHandled?: () => void;
+  token?: string;
 }
 
-const Terminal: React.FC<Props> = ({ injectedCommand, commandId = 0, onCommandHandled }) => {
+const Terminal: React.FC<Props> = ({ injectedCommand, commandId = 0, onCommandHandled, token }) => {
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -18,7 +19,7 @@ const Terminal: React.FC<Props> = ({ injectedCommand, commandId = 0, onCommandHa
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!terminalRef.current) return;
+    if (!terminalRef.current || !token) return;
 
     // Terminal initialization
     setLoading(false);
@@ -66,7 +67,6 @@ const Terminal: React.FC<Props> = ({ injectedCommand, commandId = 0, onCommandHa
 
     // Determine WebSocket URL with auth token
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const token = localStorage.getItem('webterminal-token');
     const wsUrl = `${protocol}//${window.location.host}/ws${token ? `?token=${token}` : ''}`;
 
     // Connect to WebSocket
@@ -172,7 +172,7 @@ const Terminal: React.FC<Props> = ({ injectedCommand, commandId = 0, onCommandHa
       ws.close();
       term.dispose();
     };
-  }, []);
+  }, [token]);
 
   // Inject commands from parent (e.g., sidebar buttons)
   useEffect(() => {
@@ -205,9 +205,10 @@ const Terminal: React.FC<Props> = ({ injectedCommand, commandId = 0, onCommandHa
       ref={terminalRef}
       style={{
         width: '100%',
-        height: '100%',
+        flex: 1,
         padding: '2px',
         boxSizing: 'border-box',
+        overflow: 'hidden',
       }}
     />
   );

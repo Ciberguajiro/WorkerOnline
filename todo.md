@@ -6,9 +6,10 @@
 - [x] Sonido/configuración por tipo de evento (complete, error, permission, etc.) ✅ (useSound con Web Audio API, toggle mute)
 
 ## 🖥️ UI/UX - Clonar repos
-- [ ] Input + botón en sidebar para pegar URL de GitHub y clonar sin escribir `git clone`
+- [x] Input + botón en sidebar para pegar URL de GitHub y clonar sin escribir `git clone` ✅ (WorkspaceModal + botón "Clone" en sidebar)
 - [ ] Selector de branch/tag al clonar
-- [ ] Feedback visual: spinner durante clone, toast al terminar
+- [x] Feedback visual: toast al terminar clone ✅ (toast success/error con sonido)
+- [x] Botón "New workspace" (mkdir) ✅ (WorkspaceModal + botón "New" en sidebar)
 - [ ] Botón "New repo" (git init + remote add)
 - [ ] Historial de repos clonados recientemente
 
@@ -109,7 +110,7 @@
 
 ## 📋 Resumen de Progreso (Actualizado: 2026-06-06)
 
-### ✅ Completado en esta sesión (FASE 4)
+### ✅ Completado en esta sesión (FASE 4 + Fixes)
 
 | Área | Tareas completadas |
 |------|-------------------|
@@ -117,6 +118,8 @@
 | **Notificaciones** | Toast system (success, error, info, warning), sonidos con Web Audio API (beep simples), toggle mute |
 | **Explorador de archivos** | FileExplorer en sidebar (árbol de archivos), CodeEditor en tab separado (CodeMirror 6 con JS/TS/JSON/Markdown/Python), guardar archivos (Ctrl+S) |
 | **UI/UX** | Tabs Terminal/Editor, botón login/logout en header, botón explore en workspaces |
+| **Clone/New** | Botones "Clone Repo" y "New Workspace" en sidebar con modal (WorkspaceModal) |
+| **Fixes** | Terminal layout (flex:1), WebSocket reconexión con token, authFetch en todos los componentes |
 
 ### ⚠️ Pendientes de FASE 4 (para futura implementación)
 
@@ -134,6 +137,7 @@
 ### 📝 Notas técnicas
 - **Autenticación**: El sistema usa JWT con 1 usuario hardcodeado en variables de entorno. El token se envía en `Authorization: Bearer <token>` para REST y `?token=xxx` para WebSocket.
 - **Bug Fix (2026-06-06)**: Se corrigió un bug donde los componentes `WorkspacePanel` y `GitPanel` usaban `fetch` directo en lugar de `authFetch` (que incluye el header `Authorization: Bearer <token>`). Esto causaba "Unauthorized - No token provided" después de login exitoso. El fix fue propagar el `token` desde `Dashboard` → `Sidebar` → `WorkspacePanel`/`GitPanel` y usar `authFetch` en todas las llamadas a la API.
+- **Fix Terminal (2026-06-06)**: Se corrigió el layout de la terminal (cambió `height: '100%'` a `flex: 1` para que funcione en contenedor flex). También se añadió reconexión automática del WebSocket cuando cambia el token (el componente se remonta con `key` basado en auth state).
 - **CodeMirror**: Editor funcional con soporte para JS, TS, JSON, Markdown, Python. Temas dark/light integrados. El bundle aumentó a ~1MB (996KB) por CodeMirror. Recomendado: code splitting para CodeMirror.
 - **Validación de comandos**: `/api/exec` bloquea caracteres peligrosos (`;`, `&&`, `||`, `|`, etc.) como medida de seguridad básica temporal.
 - **Logging**: El logger actual es básico (console.log con formato). Para producción se recomienda migrar a `pino` o `winston`.

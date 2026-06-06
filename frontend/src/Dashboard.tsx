@@ -5,7 +5,7 @@ import ThemeToggle from './components/ThemeToggle';
 import ShortcutsModal from './components/ShortcutsModal';
 import LoginModal from './components/LoginModal';
 import CodeEditor from './components/CodeEditor';
-import { useAuth } from './contexts/AuthContext';
+import { useAuth, authFetch } from './contexts/AuthContext';
 import { useToast } from './components/ToastContainer';
 import { useSound } from './hooks/useSound';
 import './styles.css';
@@ -87,6 +87,56 @@ const Dashboard: React.FC = () => {
     setActiveTab('terminal');
   }, [logout, addToast]);
 
+  const handleCloneRepo = useCallback(async (url: string) => {
+    try {
+      const res = await authFetch(
+        localStorage.getItem('webterminal-token') || '',
+        '/api/exec',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cmd: `git clone ${url}`, cwd: '/workspace' }),
+        }
+      );
+      const data = await res.json();
+      if (data.exitCode === 0) {
+        addToast('success', 'Repository cloned successfully');
+        play('success');
+      } else {
+        addToast('error', `Clone failed: ${data.error || data.output}`);
+        play('error');
+      }
+    } catch {
+      addToast('error', 'Failed to clone repository');
+      play('error');
+    }
+  }, [addToast, play]);
+
+  const handleCreateWorkspace = useCallback(async (name: string) => {
+    try {
+      const res = await authFetch(
+        localStorage.getItem('webterminal-token') || '',
+        '/api/exec',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cmd: `mkdir -p "${name}"`, cwd: '/workspace' }),
+        }
+      );
+      const data = await res.json();
+      if (data.exitCode === 0) {
+        addToast('success', 'Workspace created successfully');
+        play('success');
+      } else {
+        addToast('error', `Create failed: ${data.error || data.output}`);
+        play('error');
+      }
+    } catch {
+      addToast('error', 'Failed to create workspace');
+      play('error');
+    }
+  }, [addToast, play]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) {
@@ -122,6 +172,8 @@ const Dashboard: React.FC = () => {
         onSelectWorkspace={handleSelectWorkspace}
         onInjectCommand={handleInjectCommand}
         onFileSelect={handleFileSelect}
+        onCloneRepo={handleCloneRepo}
+        onCreateWorkspace={handleCreateWorkspace}
         token={isAuthenticated ? localStorage.getItem('webterminal-token') || '' : ''}
       />
       <div className="main-panel">
@@ -177,11 +229,26 @@ const Dashboard: React.FC = () => {
         </div>
         <div className="main-content">
           {activeTab === 'terminal' && (
-            <Terminal
-              injectedCommand={injectedCommand}
-              commandId={commandId}
-              onCommandHandled={handleCommandHandled}
-            />
+            isAuthenticated ? (
+              <Terminal
+                key={isAuthenticated ? 'auth' : 'noauth'}
+                injectedCommand={injectedCommand}
+                commandId={commandId}
+                onCommandHandled={handleCommandHandled}
+                token={localStorage.getItem('webterminal-token') || ''}
+              />
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, color: 'var(--text-muted)', gap: 16 }}>
+                <div style={{ fontSize: 48, opacity: 0.5 }}>🔒</div>
+                <div style={{ fontSize: 16 }}>Please login to use the terminal</div>
+                <button
+                  onClick={() => setLoginOpen(true)}
+                  style={{ padding: '10px 24px', borderRadius: 6, border: 'none', backgroundColor: 'var(--accent-blue)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Login
+                </button>
+              </div>
+            )
           )}
           {activeTab === 'editor' && (
             <CodeEditor

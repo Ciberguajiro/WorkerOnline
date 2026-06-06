@@ -595,6 +595,33 @@ html, body, #root {
   flex-direction: column;
 }
 
+/* ─── Workspace Actions ──────────────────────────────────────────────────── */
+.workspace-actions {
+  display: flex;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.workspace-action-btn {
+  flex: 1;
+  padding: 6px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.1s;
+  text-align: center;
+}
+
+.workspace-action-btn:hover {
+  background-color: var(--bg-active);
+  border-color: var(--text-secondary);
+}
+
 /* ─── Workspace Explore Button ─────────────────────────────────────────────── */
 .workspace-explore {
   background: none;

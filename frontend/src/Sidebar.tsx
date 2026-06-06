@@ -18,6 +18,8 @@ interface Props {
   onSelectWorkspace: (path: string) => void;
   onInjectCommand: (cmd: string) => void;
   onFileSelect: (path: string) => void;
+  onCloneRepo?: (url: string) => void;
+  onCreateWorkspace?: (name: string) => void;
   token: string;
 }
 
@@ -28,6 +30,8 @@ const Sidebar: React.FC<Props> = ({
   onSelectWorkspace,
   onInjectCommand,
   onFileSelect,
+  onCloneRepo,
+  onCreateWorkspace,
   token,
 }) => {
   const [currentWs, setCurrentWs] = useState<WorkspaceItem | null>(null);
@@ -43,6 +47,8 @@ const Sidebar: React.FC<Props> = ({
             selectedWorkspace={selectedWorkspace}
             onSelectWorkspace={onSelectWorkspace}
             onWorkspaceChange={setCurrentWs}
+            onCloneRepo={onCloneRepo}
+            onCreateWorkspace={onCreateWorkspace}
             token={token}
           />
           <GitPanel

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { authFetch } from './contexts/AuthContext';
+import WorkspaceModal from './components/WorkspaceModal';
 
 interface WorkspaceItem {
   name: string;
@@ -13,14 +14,26 @@ interface Props {
   onSelectWorkspace: (path: string) => void;
   onWorkspaceChange: (item: WorkspaceItem | null) => void;
   onFileSelect?: (path: string) => void;
+  onCloneRepo?: (url: string) => void;
+  onCreateWorkspace?: (name: string) => void;
   token: string;
 }
 
-const WorkspacePanel: React.FC<Props> = ({ selectedWorkspace, onSelectWorkspace, onWorkspaceChange, onFileSelect, token }) => {
+const WorkspacePanel: React.FC<Props> = ({
+  selectedWorkspace,
+  onSelectWorkspace,
+  onWorkspaceChange,
+  onFileSelect,
+  onCloneRepo,
+  onCreateWorkspace,
+  token,
+}) => {
   const [workspaces, setWorkspaces] = useState<WorkspaceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [open, setOpen] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalType, setModalType] = useState<'clone' | 'new'>('clone');
 
   const fetchWorkspaces = useCallback(async () => {
     setLoading(true);
@@ -34,7 +47,7 @@ const WorkspacePanel: React.FC<Props> = ({ selectedWorkspace, onSelectWorkspace,
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [token]);
 
   useEffect(() => {
     fetchWorkspaces();
@@ -45,6 +58,15 @@ const WorkspacePanel: React.FC<Props> = ({ selectedWorkspace, onSelectWorkspace,
     onWorkspaceChange(item);
   };
 
+  const handleModalSubmit = (value: string) => {
+    if (modalType === 'clone') {
+      onCloneRepo?.(value);
+    } else {
+      onCreateWorkspace?.(value);
+    }
+    setModalOpen(false);
+  };
+
   return (
     <div className="sidebar-section">
       <div className="sidebar-section-header" onClick={() => setOpen(!open)}>
@@ -52,6 +74,30 @@ const WorkspacePanel: React.FC<Props> = ({ selectedWorkspace, onSelectWorkspace,
         <span className={`arrow ${open ? 'open' : ''}`}>▶</span>
       </div>
       <div className={`sidebar-section-content ${open ? 'open' : ''}`}>
+        <div className="workspace-actions">
+          <button
+            className="workspace-action-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              setModalType('clone');
+              setModalOpen(true);
+            }}
+            title="Clone repository"
+          >
+            📥 Clone
+          </button>
+          <button
+            className="workspace-action-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              setModalType('new');
+              setModalOpen(true);
+            }}
+            title="New workspace"
+          >
+            📁 New
+          </button>
+        </div>
         <div className="workspace-list">
           {loading && <div className="workspace-empty">Loading...</div>}
           {error && <div className="error-text">{error}</div>}
@@ -74,7 +120,6 @@ const WorkspacePanel: React.FC<Props> = ({ selectedWorkspace, onSelectWorkspace,
                     e.stopPropagation();
                     onSelectWorkspace(ws.path);
                     onWorkspaceChange(ws);
-                    // Open first file or trigger explore
                   }}
                   title="Explore files"
                 >
@@ -91,6 +136,12 @@ const WorkspacePanel: React.FC<Props> = ({ selectedWorkspace, onSelectWorkspace,
           ⟳ Refresh
         </button>
       </div>
+      <WorkspaceModal
+        isOpen={modalOpen}
+        type={modalType}
+        onClose={() => setModalOpen(false)}
+        onSubmit={handleModalSubmit}
+      />
     </div>
   );
 };
