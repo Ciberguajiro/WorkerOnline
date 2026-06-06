@@ -1,5 +1,22 @@
 # TODO - WorkerOnline
 
+
+FIX:
+
+git commit --message "Arreglago todo x2"
+Author identity unknown
+
+*** Please tell me who you are.
+
+Run
+
+  git config --global user.email "you@example.com"
+  git config --global user.name "Your Name"
+
+- con las credenciales que se configura hacer git config *
+- npm install -g @juliusbrussee/caveman-code / curl -fsSL https://raw.githubusercontent.com/JuliusBrussee/caveman/main/install.sh | bash
+- skills y plugins de claude
+
 ## 🔔 Notificaciones
 - [ ] Notificaciones cuando una tarea de AI termina (integrar `opencode-notifier` o hook `event` → `session.idle`)
 - [x] Notificaciones visuales en la UI (toast/snackbar) para eventos importantes ✅ (ToastProvider + ToastContainer + useToast)
