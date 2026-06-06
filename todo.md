@@ -3,17 +3,7 @@
 
 FIX:
 
-git commit --message "Arreglago todo x2"
-Author identity unknown
-
-*** Please tell me who you are.
-
-Run
-
-  git config --global user.email "you@example.com"
-  git config --global user.name "Your Name"
-
-- con las credenciales que se configura hacer git config *
+- [x] git config user.email/name desde env vars GIT_USER_EMAIL + GIT_USER_NAME ✅ (entrypoint.sh + docker-compose.yml)
 - npm install -g @juliusbrussee/caveman-code / curl -fsSL https://raw.githubusercontent.com/JuliusBrussee/caveman/main/install.sh | bash
 - skills y plugins de claude
 
@@ -46,8 +36,8 @@ Run
 - [ ] Aislar sesiones por usuario (cada usuario su propio workspace)
 
 ## 🖇️ Terminal & Sesiones
-- [ ] Soporte para múltiples pestañas de terminal
-- [ ] Reconexión automática del WebSocket (reconnect con backoff)
+- [x] Soporte para múltiples pestañas de terminal ✅ (Dashboard: add/close terminal tabs, each tab isolated WS+PTY)
+- [x] Reconexión automática del WebSocket (reconnect con backoff) ✅ (Terminal.tsx: exponential backoff 1s→2s→4s→30s max)
 - [ ] Persistencia de sesión: reabrir terminal sin perder historial
 - [ ] Atajos de teclado configurables (Ctrl+Shift+C/V, nuevas pestañas, etc.)
 - [ ] Control de tamaño de fuente desde la UI
@@ -56,7 +46,7 @@ Run
 ## 📁 Explorador de archivos
 - [x] File tree visual en sidebar (navegar `/workspace` gráficamente) ✅ (FileExplorer component en sidebar)
 - [x] Editor de texto básico embebido (CodeMirror) ✅ (CodeEditor en tab separado con soporte JS/TS/JSON/Markdown/Python)
-- [ ] Crear/renombrar/eliminar archivos y carpetas desde UI
+- [x] Crear/renombrar/eliminar archivos y carpetas desde UI ✅ (FileExplorer: +f/+d/rename/delete buttons; backend: DELETE /api/files, POST /api/files/mkdir, PATCH /api/files/rename)
 - [ ] Upload/download de archivos
 
 ## 🤖 Herramientas AI
@@ -81,7 +71,7 @@ Run
 - [ ] Tests E2E con Playwright (terminal + sidebar)
 
 ## ⚡ Optimizaciones Frontend
-- [ ] Code splitting con `React.lazy()` + `Suspense` (cargar paneles bajo demanda)
+- [x] Code splitting con `React.lazy()` + `Suspense` (cargar paneles bajo demanda) ✅ (CodeEditor lazy-loaded, ~900KB separado del bundle inicial)
 - [ ] Compresión gzip/brotli en Vite (`vite-plugin-compression`)
 - [ ] Caché de assets con hash en nombre de archivo (ya tiene, verificar config)
 - [ ] Precargar fuentes y assets críticos (`<link rel="preload">`)
@@ -89,7 +79,7 @@ Run
 - [ ] Tree shaking: verificar imports sin barrel files
 - [ ] PWA: service worker, offline support, manifest, íconos
 - [ ] Virtual scrolling para file tree grande
-- [ ] Debounce/throttle en eventos de resize de terminal
+- [x] Debounce/throttle en eventos de resize de terminal ✅ (Terminal.tsx: 150ms debounce en ResizeObserver)
 - [ ] React.memo en componentes de sidebar para evitar re-renders
 - [ ] CSS containment y `will-change` para animaciones del sidebar
 - [x] Formato y linting: ESLint + Prettier + `.editorconfig` ✅ (configurados en frontend/)
@@ -101,7 +91,7 @@ Run
 - [ ] Cluster mode con `node:cluster` o PM2 para multi-core
 - [x] Health check endpoint (`GET /api/health`) ✅ (endpoint + docker-compose healthcheck)
 - [x] Graceful shutdown (cerrar PTYs, WebSockets, conexiones activas) ✅ (cierra WS, fuerza salida tras 10s)
-- [ ] Rate limiting (express-rate-limit + ws-rate-limit)
+- [x] Rate limiting (express-rate-limit) ✅ (100 req/15min en /api/, 5 req/15min en /api/auth/login)
 - [x] Logging estructurado con `pino` o `winston` (reemplazar console.log) ✅ (logger básico con timestamps/requestId)
 - [x] Request ID por sesión para tracing de logs ✅ (requestId en Express middleware y WS)
 - [x] Timeout en WebSocket inactivo (cerrar tras N minutos) ✅ (configurable via WS_TIMEOUT_MS, default 15min)
@@ -125,31 +115,31 @@ Run
 
 ---
 
-## 📋 Resumen de Progreso (Actualizado: 2026-06-06)
+## 📋 Resumen de Progreso (Actualizado: 2026-06-06, v0.1.12)
 
-### ✅ Completado en esta sesión (FASE 4 + Fixes)
+### ✅ Completado en FASE 5 (esta sesión)
 
 | Área | Tareas completadas |
 |------|-------------------|
-| **Autenticación** | JWT hardcodeado (ADMIN_USERNAME, ADMIN_PASSWORD, JWT_SECRET), login/logout, protección de endpoints REST y WebSocket |
-| **Notificaciones** | Toast system (success, error, info, warning), sonidos con Web Audio API (beep simples), toggle mute |
-| **Explorador de archivos** | FileExplorer en sidebar (árbol de archivos), CodeEditor en tab separado (CodeMirror 6 con JS/TS/JSON/Markdown/Python), guardar archivos (Ctrl+S) |
-| **UI/UX** | Tabs Terminal/Editor, botón login/logout en header, botón explore en workspaces |
-| **Clone/New** | Botones "Clone Repo" y "New Workspace" en sidebar con modal (WorkspaceModal) |
-| **Fixes** | Terminal layout (flex:1), WebSocket reconexión con token, authFetch en todos los componentes |
+| **Persistencia sesiones** | Volúmenes Docker para `~/.claude` y `~/.opencode` y `~/.config` — Claude Code y OpenCode no pierden auth/sesiones al reiniciar |
+| **Git identity** | `GIT_USER_EMAIL` + `GIT_USER_NAME` env vars configuran git en entrypoint.sh. Fix: `gitconfig:/root/.gitconfig` era volumen de directorio (bug Docker), eliminado |
+| **Terminal multi-tab** | Dashboard: add/close terminal tabs, cada tab tiene WS+PTY aislado |
+| **WS auto-reconnect** | Terminal.tsx: backoff exponencial 1s→2s→4s→30s, muestra "Reconnecting in Xs..." |
+| **Debounce resize** | Terminal.tsx: ResizeObserver con 150ms debounce, reduce WS messages |
+| **Code splitting** | CodeEditor lazy-loaded con React.lazy+Suspense, ~900KB fuera del bundle inicial |
+| **Rate limiting** | express-rate-limit: 100 req/15min en /api/, 5 req/15min en /api/auth/login |
+| **File CRUD** | Backend: DELETE /api/files, POST /api/files/mkdir, PATCH /api/files/rename. Frontend: +f/+d/rename(dblclick)/delete en FileExplorer |
 
-### ⚠️ Pendientes de FASE 4 (para futura implementación)
+### ⚠️ Pendientes (para futuras fases)
 
 | Tarea | ¿Qué falta? |
 |-------|-------------|
 | **Imágenes en editor** | CodeMirror solo soporta texto. Pendiente: preview de imágenes |
-| **CRUD archivos** | Solo navegar y editar. Pendiente: crear/renombrar/eliminar archivos/carpetas |
 | **Múltiples usuarios** | Actualmente solo 1 usuario hardcodeado. Pendiente: sistema de usuarios real |
-| **Rate limiting** | Pendiente: express-rate-limit + ws-rate-limit |
 | **HTTPS/TLS** | Pendiente: certificados auto-generados o configurables |
 | **PWA** | Pendiente: service worker, offline support, manifest |
-| **Code splitting** | Bundle de 1MB. Pendiente: React.lazy() + Suspense para CodeMirror |
 | **Tests** | Pendiente: Vitest/Jest backend, React Testing Library frontend, Playwright E2E |
+| **UI Settings credenciales** | Pendiente: panel para gestionar API keys desde la UI |
 
 ### 📝 Notas técnicas
 - **Autenticación**: El sistema usa JWT con 1 usuario hardcodeado en variables de entorno. El token se envía en `Authorization: Bearer <token>` para REST y `?token=xxx` para WebSocket.

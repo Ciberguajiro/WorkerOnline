@@ -116,30 +116,114 @@ export function filesRoutes(app: any) {
   // Save file content
   app.post('/api/files', (req: AuthRequest, res: Response) => {
     const { path: filePath, content } = req.body as { path?: string; content?: string };
-    
+
     if (!filePath || content === undefined) {
       res.status(400).json({ error: 'Missing path or content' });
       return;
     }
-    
+
     const targetPath = path.join(WORKSPACE_DIR, filePath);
-    
+
     if (!targetPath.startsWith(WORKSPACE_DIR)) {
       res.status(403).json({ error: 'Forbidden' });
       return;
     }
-    
+
     // Ensure directory exists
     const dir = path.dirname(targetPath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
-    
+
     try {
       fs.writeFileSync(targetPath, content, 'utf-8');
       res.json({ success: true, path: filePath });
     } catch {
       res.status(500).json({ error: 'Failed to write file' });
+    }
+  });
+
+  // Create directory
+  app.post('/api/files/mkdir', (req: AuthRequest, res: Response) => {
+    const { path: dirPath } = req.body as { path?: string };
+
+    if (!dirPath) {
+      res.status(400).json({ error: 'Missing path' });
+      return;
+    }
+
+    const targetPath = path.join(WORKSPACE_DIR, dirPath);
+    if (!targetPath.startsWith(WORKSPACE_DIR)) {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
+
+    try {
+      fs.mkdirSync(targetPath, { recursive: true });
+      res.json({ success: true, path: dirPath });
+    } catch {
+      res.status(500).json({ error: 'Failed to create directory' });
+    }
+  });
+
+  // Rename / move file or directory
+  app.patch('/api/files/rename', (req: AuthRequest, res: Response) => {
+    const { from, to } = req.body as { from?: string; to?: string };
+
+    if (!from || !to) {
+      res.status(400).json({ error: 'Missing from or to' });
+      return;
+    }
+
+    const fromPath = path.join(WORKSPACE_DIR, from);
+    const toPath = path.join(WORKSPACE_DIR, to);
+
+    if (!fromPath.startsWith(WORKSPACE_DIR) || !toPath.startsWith(WORKSPACE_DIR)) {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
+
+    if (!fs.existsSync(fromPath)) {
+      res.status(404).json({ error: 'Source not found' });
+      return;
+    }
+
+    // Ensure destination parent exists
+    fs.mkdirSync(path.dirname(toPath), { recursive: true });
+
+    try {
+      fs.renameSync(fromPath, toPath);
+      res.json({ success: true, from, to });
+    } catch {
+      res.status(500).json({ error: 'Failed to rename' });
+    }
+  });
+
+  // Delete file or directory
+  app.delete('/api/files', (req: AuthRequest, res: Response) => {
+    const { path: filePath } = req.body as { path?: string };
+
+    if (!filePath) {
+      res.status(400).json({ error: 'Missing path' });
+      return;
+    }
+
+    const targetPath = path.join(WORKSPACE_DIR, filePath);
+    if (!targetPath.startsWith(WORKSPACE_DIR)) {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
+
+    if (!fs.existsSync(targetPath)) {
+      res.status(404).json({ error: 'Not found' });
+      return;
+    }
+
+    try {
+      fs.rmSync(targetPath, { recursive: true, force: true });
+      res.json({ success: true, path: filePath });
+    } catch {
+      res.status(500).json({ error: 'Failed to delete' });
     }
   });
 }

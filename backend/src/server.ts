@@ -1,6 +1,7 @@
 import express from 'express';
 import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
+import rateLimit from 'express-rate-limit';
 import path from 'path';
 import fs from 'fs';
 import { exec, execSync } from 'child_process';
@@ -14,6 +15,11 @@ const PORT = process.env.PORT || 3000;
 const WS_TIMEOUT_MS = parseInt(process.env.WS_TIMEOUT_MS || '900000', 10); // 15 min default
 
 app.use(express.json());
+
+const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100, standardHeaders: true, legacyHeaders: false });
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 5, standardHeaders: true, legacyHeaders: false });
+app.use('/api/', apiLimiter);
+app.use('/api/auth/login', authLimiter);
 
 const WORKSPACE_DIR = '/workspace';
 
@@ -42,7 +48,7 @@ function log(level: string, message: string, meta?: Record<string, unknown>) {
 
 // ─── Health Check ─────────────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', uptime: process.uptime(), version: '0.1.5' });
+  res.json({ status: 'ok', uptime: process.uptime(), version: '0.1.12' });
 });
 
 // ─── Request ID Middleware ──────────────────────────────────────────────────────
@@ -134,6 +140,47 @@ app.post('/api/exec', requireAuth, (req, res) => {
   });
 });
 
+// ─── Sessions (tmux) API ──────────────────────────────────────────────────────
+
+app.get('/api/sessions', requireAuth, (_req, res) => {
+  exec(
+    "tmux list-sessions -F '#{session_name}|#{session_created}|#{session_attached}' 2>/dev/null",
+    { timeout: 5000 },
+    (error, stdout) => {
+      if (error || !stdout.trim()) {
+        res.json({ sessions: [] });
+        return;
+      }
+      const sessions = stdout.trim().split('\n')
+        .map((line) => {
+          const [name, created, attached] = line.split('|');
+          return {
+            name,
+            createdAt: parseInt(created, 10) * 1000,
+            attached: attached?.trim() === '1',
+          };
+        })
+        .filter((s) => s.name?.startsWith('wt-'));
+      res.json({ sessions });
+    }
+  );
+});
+
+app.delete('/api/sessions/:name', requireAuth, (req, res) => {
+  const { name } = req.params;
+  if (!name || !name.startsWith('wt-') || !/^wt-[a-z0-9]+$/i.test(name)) {
+    res.status(400).json({ error: 'Invalid session name' });
+    return;
+  }
+  exec(`tmux kill-session -t "${name}" 2>/dev/null`, { timeout: 5000 }, (error) => {
+    if (error) {
+      res.status(404).json({ error: 'Session not found or already closed' });
+      return;
+    }
+    res.json({ success: true });
+  });
+});
+
 // ─── Auth Routes ──────────────────────────────────────────────────────────────
 authRoutes(app);
 
@@ -204,9 +251,11 @@ wss.on('connection', (ws: WebSocket, req) => {
     log('error', 'WebSocket error', { requestId, error: (error as Error).message });
   });
 
+  const sessionName = url.searchParams.get('session') || undefined;
+
   try {
-    const terminal = new TerminalSession(ws);
-    log('info', 'Terminal session created successfully', { requestId });
+    const terminal = new TerminalSession(ws, sessionName);
+    log('info', 'Terminal session created successfully', { requestId, session: sessionName ?? 'none' });
   } catch (error) {
     log('error', 'Failed to create terminal session', { requestId, error: (error as Error).message });
     ws.close(1011, 'Failed to create terminal');

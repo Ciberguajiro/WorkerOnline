@@ -16,11 +16,12 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - GITHUB_TOKEN=${GITHUB_TOKEN}
       - PORT=3000
+      # Git identity for commits inside the terminal
+      - GIT_USER_EMAIL=${GIT_USER_EMAIL:-}
+      - GIT_USER_NAME=${GIT_USER_NAME:-}
     volumes:
       # Workspace for repositories (persistent on host)
       - ./workspace:/workspace
-      # Git configuration persistence
-      - gitconfig:/root/.gitconfig
       # SSH keys and configuration persistence
       - ssh:/root/.ssh
       # Cache for tools and npm/bun
@@ -29,6 +30,12 @@ services:
       - npm-global:/root/.npm-global
       # Bun cache persistence
       - bun-cache:/root/.bun/install/cache
+      # Claude Code sessions, auth token, and config persistence
+      - claude-data:/root/.claude
+      # OpenCode binary + sessions persistence
+      - opencode-data:/root/.opencode
+      # XDG config dir (opencode and other tools store config here)
+      - xdg-config:/root/.config
     working_dir: /workspace
     # Keep container running and interactive
     tty: true
@@ -44,8 +51,6 @@ services:
       start_period: 40s
 
 volumes:
-  gitconfig:
-    driver: local
   ssh:
     driver: local
   cache:
@@ -53,4 +58,10 @@ volumes:
   npm-global:
     driver: local
   bun-cache:
+    driver: local
+  claude-data:
+    driver: local
+  opencode-data:
+    driver: local
+  xdg-config:
     driver: local

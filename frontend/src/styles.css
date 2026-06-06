@@ -565,6 +565,30 @@ html, body, #root {
   background-color: var(--bg-primary);
 }
 
+.tab-close {
+  margin-left: 4px;
+  opacity: 0.5;
+  font-size: 15px;
+  line-height: 1;
+  border-radius: 3px;
+  padding: 0 2px;
+}
+
+.tab-close:hover {
+  opacity: 1;
+  background-color: var(--bg-hover);
+}
+
+.tab-add {
+  padding: 8px 10px;
+  font-size: 16px;
+  opacity: 0.6;
+}
+
+.tab-add:hover {
+  opacity: 1;
+}
+
 .main-actions {
   display: flex;
   align-items: center;

@@ -17,6 +17,17 @@ if [ -n "$GITHUB_TOKEN" ]; then
     export GITHUB_TOKEN="$GITHUB_TOKEN"
 fi
 
+# Configure git user identity from env vars (required for git commits)
+if [ -n "$GIT_USER_EMAIL" ]; then
+    git config --global user.email "$GIT_USER_EMAIL"
+fi
+if [ -n "$GIT_USER_NAME" ]; then
+    git config --global user.name "$GIT_USER_NAME"
+fi
+
+# Ensure persistent data dirs exist (volumes may be empty on first mount)
+mkdir -p /root/.claude /root/.config
+
 # Configure API keys environment variables
 if [ -n "$ANTHROPIC_API_KEY" ]; then
     echo "ANTHROPIC_API_KEY configured"

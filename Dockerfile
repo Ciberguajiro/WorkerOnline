@@ -56,7 +56,7 @@ RUN npx vite build
 # --- Final Stage ---
 FROM node:22-alpine AS final
 
-# Install runtime dependencies only (git, bash, ssh-client)
+# Install runtime dependencies only (git, bash, ssh-client, tmux for persistent sessions)
 RUN apk add --no-cache \
     git \
     bash \
@@ -66,7 +66,8 @@ RUN apk add --no-cache \
     make \
     gcc \
     g++ \
-    linux-headers
+    linux-headers \
+    tmux
 
 # Set main app directory
 WORKDIR /app

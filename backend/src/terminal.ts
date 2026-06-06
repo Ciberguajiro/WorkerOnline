@@ -5,15 +5,20 @@ export class TerminalSession {
   private ptyProcess: pty.IPty;
   private ws: WebSocket;
 
-  constructor(ws: WebSocket, cwd: string = '/workspace') {
+  constructor(ws: WebSocket, sessionName?: string, cwd: string = '/workspace') {
     this.ws = ws;
-    
-    // Spawn bash shell with PTY
-    this.ptyProcess = pty.spawn('/bin/bash', [], {
+
+    // Use tmux for persistent sessions when a session name is provided.
+    // Killing the tmux client (node-pty) detaches from the session but keeps
+    // the tmux session (and any running AI tool) alive in the background.
+    const cmd = sessionName ? 'tmux' : '/bin/bash';
+    const args = sessionName ? ['new-session', '-A', '-s', sessionName] : [];
+
+    this.ptyProcess = pty.spawn(cmd, args, {
       name: 'xterm-color',
       cols: 80,
       rows: 30,
-      cwd: cwd,
+      cwd,
       env: {
         ...process.env,
         TERM: 'xterm-256color',
@@ -22,37 +27,31 @@ export class TerminalSession {
       } as { [key: string]: string },
     });
 
-    // Handle data from PTY process
     this.ptyProcess.onData((data: string) => {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'data', data }));
       }
     });
 
-    // Handle PTY process exit
     this.ptyProcess.onExit(({ exitCode, signal }) => {
       console.log(`PTY process exited with code ${exitCode} and signal ${signal}`);
       if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ 
-          type: 'data', 
-          data: `\r\nProcess exited with code ${exitCode}\r\n` 
+        ws.send(JSON.stringify({
+          type: 'data',
+          data: `\r\nProcess exited with code ${exitCode}\r\n`,
         }));
         ws.close();
       }
     });
 
-    // Handle WebSocket messages
     ws.on('message', (message: Buffer) => {
       try {
         const msg = JSON.parse(message.toString());
-        
         switch (msg.type) {
           case 'data':
-            // Write data to PTY (user input)
             this.ptyProcess.write(msg.data);
             break;
           case 'resize':
-            // Resize PTY
             if (msg.cols && msg.rows) {
               this.ptyProcess.resize(msg.cols, msg.rows);
             }
@@ -60,8 +59,7 @@ export class TerminalSession {
           default:
             console.warn('Unknown message type:', msg.type);
         }
-      } catch (error) {
-        // If not JSON, treat as raw data (fallback for simple clients)
+      } catch {
         const data = message.toString();
         if (data.startsWith('resize:')) {
           const [, cols, rows] = data.split(':');
@@ -72,13 +70,13 @@ export class TerminalSession {
       }
     });
 
-    // Handle WebSocket close
     ws.on('close', () => {
-      console.log('WebSocket closed, killing PTY process');
+      // Killing node-pty detaches the tmux CLIENT but leaves the tmux SESSION
+      // running — claude/opencode keep working in the background.
+      console.log(`WebSocket closed, detaching session: ${sessionName ?? 'none'}`);
       this.ptyProcess.kill();
     });
 
-    // Handle WebSocket errors
     ws.on('error', (error) => {
       console.error('WebSocket error:', error);
       this.ptyProcess.kill();
