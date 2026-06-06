@@ -1,8 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Terminal as XTerm } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import 'xterm/css/xterm.css';
-import TerminalSkeleton from './components/TerminalSkeleton';
 
 interface Props {
   injectedCommand?: string;
@@ -16,13 +15,9 @@ const Terminal: React.FC<Props> = ({ injectedCommand, commandId = 0, onCommandHa
   const xtermRef = useRef<XTerm | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!terminalRef.current || !token) return;
-
-    // Terminal initialization
-    setLoading(false);
 
     // Initialize xterm.js
     const term = new XTerm({
@@ -195,10 +190,6 @@ const Terminal: React.FC<Props> = ({ injectedCommand, commandId = 0, onCommandHa
     ws.addEventListener('open', onOpen);
     return () => ws.removeEventListener('open', onOpen);
   }, [commandId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  if (loading) {
-    return <TerminalSkeleton />;
-  }
 
   return (
     <div
