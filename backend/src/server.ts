@@ -48,7 +48,7 @@ function log(level: string, message: string, meta?: Record<string, unknown>) {
 
 // ─── Health Check ─────────────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', uptime: process.uptime(), version: '0.1.15' });
+  res.json({ status: 'ok', uptime: process.uptime(), version: '0.1.16' });
 });
 
 // ─── Request ID Middleware ──────────────────────────────────────────────────────

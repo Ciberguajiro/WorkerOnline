@@ -34,6 +34,24 @@ hash -r 2>/dev/null || true
 export PATH="/root/.npm-global/bin:$HOME/.opencode/bin:${PATH}"
 BASHRC_EOF
 
+# tmux starts the pane shell as a LOGIN shell, which sources /etc/profile +
+# ~/.bash_profile/~/.profile but NOT ~/.bashrc. Put the tools PATH where login
+# shells will read it so opencode/claude resolve inside tmux sessions too.
+mkdir -p /etc/profile.d
+cat > /etc/profile.d/00-tools-path.sh << 'PROFILE_EOF'
+# Keep opencode and claude-code on PATH for every login shell (tmux panes).
+hash -r 2>/dev/null || true
+export PATH="/root/.npm-global/bin:/root/.opencode/bin:${PATH}"
+PROFILE_EOF
+chmod +x /etc/profile.d/00-tools-path.sh
+
+# Login bash reads ~/.bash_profile (not ~/.bashrc); make it pull in both.
+cat > /root/.bash_profile << 'PROFILE_EOF'
+# Source the system profile (which loads /etc/profile.d/*.sh) then ~/.bashrc.
+[ -f /etc/profile ] && . /etc/profile
+[ -f /root/.bashrc ] && . /root/.bashrc
+PROFILE_EOF
+
 # Configure GitHub token if provided
 if [ -n "$GITHUB_TOKEN" ]; then
     echo "Configuring GitHub token..."
