@@ -3,6 +3,12 @@ set -e
 # Enable pipefail if supported (bash/zsh) to catch errors in pipes like curl|bash
 if set -o | grep -q pipefail; then set -o pipefail; fi
 
+# Pin HOME and the opencode install dir so install location and PATH agree.
+# Docker leaves HOME unset for root, which made opencode land in /.opencode/bin
+# while the PTY shell looked in /root/.opencode/bin -> "command not found".
+export HOME=/root
+export OPENCODE_INSTALL_DIR=/root/.opencode/bin
+
 # Create workspace directory if it doesn't exist
 mkdir -p /workspace
 cd /workspace

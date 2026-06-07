@@ -42,7 +42,7 @@ There is **no test suite** and no lint script in package.json — lint frontend 
 4. Idle WS connections are killed after `WS_TIMEOUT_MS` (default 15 min). `activeSessions` set drives graceful shutdown on SIGTERM/SIGINT.
 
 ### Backend modules (`backend/src/`)
-- `server.ts` — Express app, static serving, WS server, `/api/health`, `/api/workspaces` (lists `/workspace` subdirs + git branch), `/api/exec` (one-shot command runner with a character blocklist + 30s timeout), graceful shutdown, structured `log()`.
+- `server.ts` — Express app, static serving, WS server, `/api/health`, `/api/workspaces` (lists `/workspace` subdirs + git branch), `/api/exec` (one-shot command runner with a character blocklist + 30s timeout), graceful shutdown, structured `log()`. Two `express-rate-limit` limiters: `apiLimiter` (100 req / 15 min) on API routes, `authLimiter` (5 req / 15 min) on login.
 - `auth.ts` — JWT issue/verify, `requireAuth` Bearer middleware, `/api/auth/login`, `/api/auth/me`. `JWT_SECRET`, admin creds all come from env with insecure defaults.
 - `files.ts` — `/api/files/tree`, `/api/files` (read/write). Used by the in-browser CodeEditor.
 - `terminal.ts` — the per-connection PTY wrapper described above.

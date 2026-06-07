@@ -69,6 +69,9 @@ RUN apk add --no-cache \
     linux-headers \
     tmux
 
+# Ensure HOME is set so $HOME-based install paths resolve consistently to /root
+ENV HOME=/root
+
 # Set main app directory
 WORKDIR /app
 RUN mkdir -p /workspace /root/.ssh /root/.cache /root/.npm-global
