@@ -9,6 +9,13 @@ if set -o | grep -q pipefail; then set -o pipefail; fi
 export HOME=/root
 export OPENCODE_INSTALL_DIR=/root/.opencode/bin
 
+# Credential persistence: pin the dirs the AI tools store auth in so they land
+# on mounted volumes and survive image rebuilds.
+#   opencode -> $XDG_DATA_HOME/opencode/auth.json   (volume: /root/.local/share)
+#   claude   -> $CLAUDE_CONFIG_DIR (config+creds)    (volume: /root/.claude)
+export XDG_DATA_HOME=/root/.local/share
+export CLAUDE_CONFIG_DIR=/root/.claude
+
 # Create workspace directory if it doesn't exist
 mkdir -p /workspace
 cd /workspace
@@ -32,6 +39,9 @@ cat > /root/.bashrc << 'BASHRC_EOF'
 hash -r 2>/dev/null || true
 # Tools PATH — keep opencode and claude-code available in every session
 export PATH="/root/.npm-global/bin:$HOME/.opencode/bin:${PATH}"
+# Credential dirs so opencode/claude auth lands on the mounted volumes
+export XDG_DATA_HOME=/root/.local/share
+export CLAUDE_CONFIG_DIR=/root/.claude
 BASHRC_EOF
 
 # tmux starts the pane shell as a LOGIN shell, which sources /etc/profile +
@@ -42,6 +52,9 @@ cat > /etc/profile.d/00-tools-path.sh << 'PROFILE_EOF'
 # Keep opencode and claude-code on PATH for every login shell (tmux panes).
 hash -r 2>/dev/null || true
 export PATH="/root/.npm-global/bin:/root/.opencode/bin:${PATH}"
+# Credential dirs so opencode/claude auth lands on the mounted volumes
+export XDG_DATA_HOME=/root/.local/share
+export CLAUDE_CONFIG_DIR=/root/.claude
 PROFILE_EOF
 chmod +x /etc/profile.d/00-tools-path.sh
 
@@ -68,7 +81,7 @@ if [ -n "$GIT_USER_NAME" ]; then
 fi
 
 # Ensure persistent data dirs exist (volumes may be empty on first mount)
-mkdir -p /root/.claude /root/.config
+mkdir -p /root/.claude /root/.config /root/.local/share/opencode
 
 # Configure API keys environment variables
 if [ -n "$ANTHROPIC_API_KEY" ]; then

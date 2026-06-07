@@ -32,8 +32,10 @@ services:
       - bun-cache:/root/.bun/install/cache
       # Claude Code sessions, auth token, and config persistence
       - claude-data:/root/.claude
-      # OpenCode binary + sessions persistence
+      # OpenCode binary persistence
       - opencode-data:/root/.opencode
+      # OpenCode auth.json + session/project data (XDG data dir: ~/.local/share)
+      - opencode-share:/root/.local/share
       # XDG config dir (opencode and other tools store config here)
       - xdg-config:/root/.config
     working_dir: /workspace
@@ -62,6 +64,8 @@ volumes:
   claude-data:
     driver: local
   opencode-data:
+    driver: local
+  opencode-share:
     driver: local
   xdg-config:
     driver: local
