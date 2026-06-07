@@ -1,5 +1,7 @@
 #!/bin/sh
 set -e
+# Enable pipefail if supported (bash/zsh) to catch errors in pipes like curl|bash
+if set -o | grep -q pipefail; then set -o pipefail; fi
 
 # Create workspace directory if it doesn't exist
 mkdir -p /workspace
@@ -20,6 +22,8 @@ ln -sf "$NPMRC_PERSIST" /root/.npmrc
 # Ensure .bashrc always adds tools to PATH so every new bash session
 # (PTY, tmux, manual bash invocations) finds opencode and claude-code
 cat > /root/.bashrc << 'BASHRC_EOF'
+# Clear cached command-not-found entries so newly installed tools are found
+hash -r 2>/dev/null || true
 # Tools PATH — keep opencode and claude-code available in every session
 export PATH="/root/.npm-global/bin:$HOME/.opencode/bin:${PATH}"
 BASHRC_EOF
@@ -56,10 +60,19 @@ fi
 # Lazy-install opencode if not present
 if ! command -v opencode >/dev/null 2>&1; then
     echo "Installing opencode..."
-    curl -fsSL https://opencode.ai/install | bash -s -- --no-modify-path
-    hash -r 2>/dev/null || true
+    if curl -fsSL --connect-timeout 10 --max-time 600 https://opencode.ai/install | bash -s -- --no-modify-path; then
+        hash -r 2>/dev/null || true
+        if command -v opencode >/dev/null 2>&1; then
+            echo "opencode installed successfully ($(opencode --version 2>/dev/null || echo 'unknown version'))"
+        else
+            echo "WARNING: opencode install script ran but binary not found in PATH"
+            echo "  Expected at: $HOME/.opencode/bin/opencode"
+        fi
+    else
+        echo "WARNING: Failed to install opencode — install script exited with error"
+    fi
 else
-    echo "opencode already installed"
+    echo "opencode already installed ($(opencode --version 2>/dev/null || echo 'unknown version'))"
 fi
 
 # Ensure opencode is in PATH (installed to ~/.opencode/bin by the official script)
@@ -68,8 +81,19 @@ export PATH="$HOME/.opencode/bin:${PATH}"
 # Lazy-install claude-code if not present (check both 'claude' and 'claude-code' binaries)
 if ! command -v claude >/dev/null 2>&1 && ! command -v claude-code >/dev/null 2>&1; then
     echo "Installing @anthropic-ai/claude-code..."
-    npm install -g @anthropic-ai/claude-code
-    hash -r 2>/dev/null || true
+    if npm install -g @anthropic-ai/claude-code 2>&1; then
+        hash -r 2>/dev/null || true
+        if command -v claude >/dev/null 2>&1; then
+            echo "claude installed successfully"
+        elif command -v claude-code >/dev/null 2>&1; then
+            echo "claude-code installed successfully"
+        else
+            echo "WARNING: npm install succeeded but neither 'claude' nor 'claude-code' found in PATH"
+            echo "  Expected at: /root/.npm-global/bin/"
+        fi
+    else
+        echo "WARNING: Failed to install @anthropic-ai/claude-code — npm install exited with error"
+    fi
 else
     echo "claude already installed"
 fi
