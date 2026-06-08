@@ -8,7 +8,7 @@ import { json } from '@codemirror/lang-json';
 import { markdown } from '@codemirror/lang-markdown';
 import { python } from '@codemirror/lang-python';
 import { useTheme } from '../hooks/useTheme';
-import { authFetch } from '../hooks/useAuth';
+import { useSocket } from '../contexts/SocketContext';
 
 interface OpenFile {
   path: string;
@@ -18,16 +18,16 @@ interface OpenFile {
 }
 
 interface Props {
-  token: string;
   activeFile: string | null;
   onActiveFileChange: (path: string | null) => void;
   onFileSaved: () => void;
 }
 
-const CodeEditor: React.FC<Props> = ({ token, activeFile, onActiveFileChange, onFileSaved }) => {
+const CodeEditor: React.FC<Props> = ({ activeFile, onActiveFileChange, onFileSaved }) => {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const { theme } = useTheme();
+  const { openFile, saveFile } = useSocket();
   const [files, setFiles] = useState<OpenFile[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -54,7 +54,6 @@ const CodeEditor: React.FC<Props> = ({ token, activeFile, onActiveFileChange, on
 
   const getExtension = (path: string) => path.split('.').pop()?.toLowerCase() || 'txt';
 
-  // Load file when activeFile changes
   const initEditor = useCallback((file: OpenFile) => {
     if (!editorRef.current) return;
 
@@ -109,10 +108,9 @@ const CodeEditor: React.FC<Props> = ({ token, activeFile, onActiveFileChange, on
 
     setLoading(true);
     setError('');
-    authFetch(token, `/api/files?path=${encodeURIComponent(activeFile)}`)
-      .then(async (res) => {
-        if (!res.ok) throw new Error('Failed to load file');
-        const data = await res.json();
+    openFile(activeFile)
+      .then((data) => {
+        if (!data.content) throw new Error('Failed to load file');
         const newFile: OpenFile = {
           path: activeFile,
           content: data.content,
@@ -128,20 +126,15 @@ const CodeEditor: React.FC<Props> = ({ token, activeFile, onActiveFileChange, on
       .finally(() => {
         setLoading(false);
       });
-  }, [activeFile, files, initEditor, token]);
+  }, [activeFile, files, initEditor, openFile]);
 
   const handleSave = async () => {
     const currentFile = files.find((f) => f.path === activeFile);
     if (!currentFile) return;
 
     try {
-      const res = await authFetch(token, '/api/files', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: currentFile.path, content: currentFile.content }),
-      });
-
-      if (!res.ok) throw new Error('Failed to save');
+      const result = await saveFile(currentFile.path, currentFile.content);
+      if (!result.ok) throw new Error(result.error || 'Failed to save');
 
       setFiles((prev) =>
         prev.map((f) => (f.path === currentFile.path ? { ...f, originalContent: currentFile.content } : f))

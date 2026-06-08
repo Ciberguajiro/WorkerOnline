@@ -1,20 +1,19 @@
 import * as pty from 'node-pty';
-import { WebSocket } from 'ws';
 
 export class TerminalSession {
   private ptyProcess: pty.IPty;
-  private ws: WebSocket;
+  private onDataCallback: ((data: string) => void) | null = null;
+  private onExitCallback: ((exitCode: number, signal: number | undefined) => void) | null = null;
 
-  constructor(ws: WebSocket, sessionName?: string, cwd: string = '/workspace') {
-    this.ws = ws;
+  constructor(
+    onData: (data: string) => void,
+    onExit: (exitCode: number, signal: number | undefined) => void,
+    cwd: string = '/workspace'
+  ) {
+    this.onDataCallback = onData;
+    this.onExitCallback = onExit;
 
-    // Use tmux for persistent sessions when a session name is provided.
-    // Killing the tmux client (node-pty) detaches from the session but keeps
-    // the tmux session (and any running AI tool) alive in the background.
-    const cmd = sessionName ? 'tmux' : '/bin/bash';
-    const args = sessionName ? ['new-session', '-A', '-s', sessionName] : [];
-
-    this.ptyProcess = pty.spawn(cmd, args, {
+    this.ptyProcess = pty.spawn('/bin/bash', [], {
       name: 'xterm-color',
       cols: 80,
       rows: 30,
@@ -29,58 +28,16 @@ export class TerminalSession {
     });
 
     this.ptyProcess.onData((data: string) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'data', data }));
+      if (this.onDataCallback) {
+        this.onDataCallback(data);
       }
     });
 
     this.ptyProcess.onExit(({ exitCode, signal }) => {
       console.log(`PTY process exited with code ${exitCode} and signal ${signal}`);
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-          type: 'data',
-          data: `\r\nProcess exited with code ${exitCode}\r\n`,
-        }));
-        ws.close();
+      if (this.onExitCallback) {
+        this.onExitCallback(exitCode, signal);
       }
-    });
-
-    ws.on('message', (message: Buffer) => {
-      try {
-        const msg = JSON.parse(message.toString());
-        switch (msg.type) {
-          case 'data':
-            this.ptyProcess.write(msg.data);
-            break;
-          case 'resize':
-            if (msg.cols && msg.rows) {
-              this.ptyProcess.resize(msg.cols, msg.rows);
-            }
-            break;
-          default:
-            console.warn('Unknown message type:', msg.type);
-        }
-      } catch {
-        const data = message.toString();
-        if (data.startsWith('resize:')) {
-          const [, cols, rows] = data.split(':');
-          this.ptyProcess.resize(parseInt(cols), parseInt(rows));
-        } else {
-          this.ptyProcess.write(data);
-        }
-      }
-    });
-
-    ws.on('close', () => {
-      // Killing node-pty detaches the tmux CLIENT but leaves the tmux SESSION
-      // running — claude/opencode keep working in the background.
-      console.log(`WebSocket closed, detaching session: ${sessionName ?? 'none'}`);
-      this.ptyProcess.kill();
-    });
-
-    ws.on('error', (error) => {
-      console.error('WebSocket error:', error);
-      this.ptyProcess.kill();
     });
   }
 

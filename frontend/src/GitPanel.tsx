@@ -1,51 +1,52 @@
-import React, { useState } from 'react';
-import { authFetch } from './hooks/useAuth';
+import React, { useState, useEffect } from 'react';
+import { useSocket } from './contexts/SocketContext';
+import type { ExecResult } from './contexts/SocketContext';
 
 interface Props {
   workspacePath: string;
   branch: string;
   isGitRepo: boolean;
-  token: string;
 }
 
-interface ExecResult {
-  output: string;
-  exitCode: number;
-  error: string | null;
-}
-
-const GitPanel: React.FC<Props> = ({ workspacePath, branch, isGitRepo, token }) => {
+const GitPanel: React.FC<Props> = ({ workspacePath, branch, isGitRepo }) => {
+  const { socket, gitStatus, gitPull, gitPush } = useSocket();
   const [open, setOpen] = useState(true);
   const [output, setOutput] = useState('');
   const [outputVisible, setOutputVisible] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [isError, setIsError] = useState(false);
 
-  const execCommand = async (cmd: string) => {
+  useEffect(() => {
+    if (!socket) return;
+
+    const gitOutputHandler = (data: { stdout: string; stderr: string }) => {
+      const out = data.stdout + (data.stderr ? '\n' + data.stderr : '');
+      setOutput((prev) => prev + out);
+      setIsRunning(false);
+    };
+
+    const execOutputHandler = (data: ExecResult) => {
+      setOutput((prev) => prev + data.output);
+      if (data.exitCode !== 0 || data.error) {
+        setIsError(true);
+      }
+      setIsRunning(false);
+    };
+
+    socket.on('git:output', gitOutputHandler);
+    socket.on('exec:output', execOutputHandler);
+
+    return () => {
+      socket.off('git:output', gitOutputHandler);
+      socket.off('exec:output', execOutputHandler);
+    };
+  }, [socket]);
+
+  const execCmd = (cmd: string) => {
     setIsRunning(true);
     setOutput(`$ ${cmd}\n`);
     setOutputVisible(true);
     setIsError(false);
-
-    try {
-      const res = await authFetch(token, '/api/exec', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cmd, cwd: workspacePath }),
-      });
-      const data: ExecResult = await res.json();
-      
-      setOutput((prev) => `${prev}${data.output}`);
-      if (data.exitCode !== 0 || data.error) {
-        setIsError(true);
-      }
-    } catch (err: unknown) {
-      const error = err instanceof Error ? err.message : 'Failed to execute';
-      setOutput((prev) => `${prev}Error: ${error}\n`);
-      setIsError(true);
-    } finally {
-      setIsRunning(false);
-    }
   };
 
   if (!isGitRepo) {
@@ -83,21 +84,30 @@ const GitPanel: React.FC<Props> = ({ workspacePath, branch, isGitRepo, token }) 
           <button
             className="git-btn status-btn"
             disabled={isRunning}
-            onClick={() => execCommand('git status --short')}
+            onClick={() => {
+              execCmd('git status --short');
+              gitStatus(workspacePath);
+            }}
           >
             Status
           </button>
           <button
             className="git-btn pull"
             disabled={isRunning}
-            onClick={() => execCommand('git pull')}
+            onClick={() => {
+              execCmd('git pull');
+              gitPull(workspacePath);
+            }}
           >
             Pull
           </button>
           <button
             className="git-btn push"
             disabled={isRunning}
-            onClick={() => execCommand('git push')}
+            onClick={() => {
+              execCmd('git push');
+              gitPush(workspacePath);
+            }}
           >
             Push
           </button>

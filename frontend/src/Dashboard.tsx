@@ -1,45 +1,24 @@
-import React, { useState, useCallback, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import Sidebar from './Sidebar';
 import Terminal from './Terminal';
 import ThemeToggle from './components/ThemeToggle';
 import ShortcutsModal from './components/ShortcutsModal';
 import LoginModal from './components/LoginModal';
-import { useAuth, authFetch } from './hooks/useAuth';
+import CodeEditor from './components/CodeEditor';
+import { useAuth } from './hooks/useAuth';
 import { useToast } from './hooks/useToast';
 import { useSound } from './hooks/useSound';
+import { useSocket } from './contexts/SocketContext';
+import type { ExecResult } from './contexts/SocketContext';
 import './styles.css';
 
-const CodeEditor = lazy(() => import('./components/CodeEditor'));
-
-interface TerminalTab {
-  id: string;
-  label: string;
-}
-
-const generateSessionId = () => `wt-${Math.random().toString(36).slice(2, 10)}`;
-
-let tabCounter = 0;
-
-const getInitialTabs = (): { tabs: TerminalTab[]; activeTabId: string } => {
-  try {
-    const saved = localStorage.getItem('wt-tabs');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed.tabs) && parsed.tabs.length > 0) {
-        tabCounter = parsed.tabs.length;
-        return { tabs: parsed.tabs, activeTabId: parsed.activeTabId || parsed.tabs[0].id };
-      }
-    }
-  } catch { /* ignore */ }
-  tabCounter = 1;
-  const id = generateSessionId();
-  return { tabs: [{ id, label: 'Terminal 1' }], activeTabId: id };
-};
+type Tab = 'terminal' | 'editor';
 
 const Dashboard: React.FC = () => {
   const { isAuthenticated, isLoading, user, logout } = useAuth();
   const { addToast } = useToast();
   const { play, enabled: soundEnabled, toggle: toggleSound } = useSound();
+  const { socket, execCommand } = useSocket();
 
   const [isMobile, setIsMobile] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -48,11 +27,8 @@ const Dashboard: React.FC = () => {
   const [commandId, setCommandId] = useState(0);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<Tab>('terminal');
   const [activeFile, setActiveFile] = useState<string | null>(null);
-
-  const initial = getInitialTabs();
-  const [terminalTabs, setTerminalTabs] = useState<TerminalTab[]>(initial.tabs);
-  const [activeTabId, setActiveTabId] = useState<string>(initial.activeTabId);
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 767px)');
@@ -72,13 +48,29 @@ const Dashboard: React.FC = () => {
       setLoginOpen(true);
     } else if (isAuthenticated) {
       setLoginOpen(false);
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      addToast('success', 'Login successful');
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      play('success');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading, isAuthenticated]);
+
+  // Listen for exec results from clone/create workspace
+  useEffect(() => {
+    if (!socket) return;
+
+    const execHandler = (data: ExecResult) => {
+      if (data.exitCode === 0) {
+        addToast('success', 'Operation completed successfully');
+        play('success');
+      } else if (data.error) {
+        addToast('error', `Operation failed: ${data.error}`);
+        play('error');
+      }
+    };
+
+    socket.on('exec:output', execHandler);
+    return () => {
+      socket.off('exec:output', execHandler);
+    };
+  }, [socket, addToast, play]);
 
   const handleToggle = useCallback(() => {
     setSidebarOpen((o) => !o);
@@ -88,9 +80,8 @@ const Dashboard: React.FC = () => {
     setSelectedWorkspace(path);
     setInjectedCommand(`cd ${path} && clear\n`);
     setCommandId((c) => c + 1);
-    setActiveTabId((cur) => cur === 'editor' ? terminalTabs[0]?.id ?? 't1' : cur);
     if (isMobile) setSidebarOpen(false);
-  }, [isMobile, terminalTabs]);
+  }, [isMobile]);
 
   const handleInjectCommand = useCallback((cmd: string) => {
     setInjectedCommand(cmd);
@@ -103,7 +94,7 @@ const Dashboard: React.FC = () => {
 
   const handleFileSelect = useCallback((path: string) => {
     setActiveFile(path);
-    setActiveTabId('editor');
+    setActiveTab('editor');
   }, []);
 
   const handleFileSaved = useCallback(() => {
@@ -115,104 +106,17 @@ const Dashboard: React.FC = () => {
     logout();
     addToast('info', 'Logged out');
     setActiveFile(null);
-    const firstTab = terminalTabs[0];
-    setActiveTabId(firstTab?.id ?? 't1');
-  }, [logout, addToast, terminalTabs]);
+    setActiveTab('terminal');
+    localStorage.removeItem('webterminal-session-id');
+  }, [logout, addToast]);
 
-  const handleCloneRepo = useCallback(async (url: string) => {
-    try {
-      const res = await authFetch(
-        localStorage.getItem('webterminal-token') || '',
-        '/api/exec',
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cmd: `git clone ${url}`, cwd: '/workspace' }),
-        }
-      );
-      const data = await res.json();
-      if (data.exitCode === 0) {
-        addToast('success', 'Repository cloned successfully');
-        play('success');
-      } else {
-        addToast('error', `Clone failed: ${data.error || data.output}`);
-        play('error');
-      }
-    } catch {
-      addToast('error', 'Failed to clone repository');
-      play('error');
-    }
-  }, [addToast, play]);
+  const handleCloneRepo = useCallback((url: string) => {
+    execCommand(`git clone ${url}`, '/workspace');
+  }, [execCommand]);
 
-  const handleCreateWorkspace = useCallback(async (name: string) => {
-    try {
-      const res = await authFetch(
-        localStorage.getItem('webterminal-token') || '',
-        '/api/exec',
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cmd: `mkdir -p "${name}"`, cwd: '/workspace' }),
-        }
-      );
-      const data = await res.json();
-      if (data.exitCode === 0) {
-        addToast('success', 'Workspace created successfully');
-        play('success');
-      } else {
-        addToast('error', `Create failed: ${data.error || data.output}`);
-        play('error');
-      }
-    } catch {
-      addToast('error', 'Failed to create workspace');
-      play('error');
-    }
-  }, [addToast, play]);
-
-  // Persist tabs to localStorage whenever they change
-  useEffect(() => {
-    localStorage.setItem('wt-tabs', JSON.stringify({ tabs: terminalTabs, activeTabId }));
-  }, [terminalTabs, activeTabId]);
-
-  const handleConnectSession = useCallback((sessionId: string) => {
-    const existing = terminalTabs.find((t) => t.id === sessionId);
-    if (existing) {
-      setActiveTabId(sessionId);
-      return;
-    }
-    const label = `Session ${sessionId.slice(3, 9)}`;
-    setTerminalTabs((prev) => [...prev, { id: sessionId, label }]);
-    setActiveTabId(sessionId);
-  }, [terminalTabs]);
-
-  const addTerminalTab = useCallback(() => {
-    tabCounter += 1;
-    const id = generateSessionId();
-    const label = `Terminal ${tabCounter}`;
-    setTerminalTabs((tabs) => [...tabs, { id, label }]);
-    setActiveTabId(id);
-  }, []);
-
-  const closeTerminalTab = useCallback((id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setTerminalTabs((tabs) => {
-      const next = tabs.filter((t) => t.id !== id);
-      if (next.length === 0) {
-        tabCounter += 1;
-        const newId = generateSessionId();
-        const newTab = { id: newId, label: `Terminal ${tabCounter}` };
-        setActiveTabId(newId);
-        return [newTab];
-      }
-      // if closing active tab, switch to adjacent
-      setActiveTabId((current) => {
-        if (current !== id) return current;
-        const idx = tabs.findIndex((t) => t.id === id);
-        return next[Math.min(idx, next.length - 1)].id;
-      });
-      return next;
-    });
-  }, []);
+  const handleCreateWorkspace = useCallback((name: string) => {
+    execCommand(`mkdir -p "${name}"`, '/workspace');
+  }, [execCommand]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -236,8 +140,6 @@ const Dashboard: React.FC = () => {
     );
   }
 
-  const token = isAuthenticated ? localStorage.getItem('webterminal-token') || '' : '';
-
   return (
     <div className="dashboard">
       <div
@@ -253,42 +155,21 @@ const Dashboard: React.FC = () => {
         onFileSelect={handleFileSelect}
         onCloneRepo={handleCloneRepo}
         onCreateWorkspace={handleCreateWorkspace}
-        onConnectSession={handleConnectSession}
-        token={token}
       />
       <div className="main-panel">
         <div className="main-header">
           <div className="main-tabs">
-            {terminalTabs.map((tab) => (
-              <button
-                key={tab.id}
-                className={`main-tab ${activeTabId === tab.id ? 'active' : ''}`}
-                onClick={() => setActiveTabId(tab.id)}
-              >
-                💻 {tab.label}
-                {terminalTabs.length > 1 && (
-                  <span
-                    className="tab-close"
-                    onClick={(e) => closeTerminalTab(tab.id, e)}
-                    title="Close tab"
-                  >
-                    ×
-                  </span>
-                )}
-              </button>
-            ))}
             <button
-              className="main-tab tab-add"
-              onClick={addTerminalTab}
-              title="New terminal"
+              className={`main-tab ${activeTab === 'terminal' ? 'active' : ''}`}
+              onClick={() => setActiveTab('terminal')}
             >
-              +
+              💻 Terminal
             </button>
             <button
-              className={`main-tab ${activeTabId === 'editor' ? 'active' : ''}`}
-              onClick={() => setActiveTabId('editor')}
+              className={`main-tab ${activeTab === 'editor' ? 'active' : ''}`}
+              onClick={() => setActiveTab('editor')}
             >
-              📝 Editor
+              📝 Code Editor
             </button>
           </div>
           <div className="main-actions">
@@ -327,42 +208,33 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
         <div className="main-content">
-          {terminalTabs.map((tab) => (
-            <div
-              key={tab.id}
-              style={{ display: activeTabId === tab.id ? 'flex' : 'none', flex: 1, flexDirection: 'column', height: '100%' }}
-            >
-              {isAuthenticated ? (
-                <Terminal
-                  sessionId={tab.id}
-                  injectedCommand={injectedCommand}
-                  commandId={activeTabId === tab.id ? commandId : 0}
-                  onCommandHandled={handleCommandHandled}
-                  token={token}
-                />
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, color: 'var(--text-muted)', gap: 16 }}>
-                  <div style={{ fontSize: 48, opacity: 0.5 }}>🔒</div>
-                  <div style={{ fontSize: 16 }}>Please login to use the terminal</div>
-                  <button
-                    onClick={() => setLoginOpen(true)}
-                    style={{ padding: '10px 24px', borderRadius: 6, border: 'none', backgroundColor: 'var(--accent-blue)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
-                  >
-                    Login
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
-          {activeTabId === 'editor' && (
-            <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, color: 'var(--text-muted)' }}>Loading editor...</div>}>
-              <CodeEditor
-                token={token}
-                activeFile={activeFile}
-                onActiveFileChange={setActiveFile}
-                onFileSaved={handleFileSaved}
+          {activeTab === 'terminal' && (
+            isAuthenticated ? (
+              <Terminal
+                key={isAuthenticated ? 'auth' : 'noauth'}
+                injectedCommand={injectedCommand}
+                commandId={commandId}
+                onCommandHandled={handleCommandHandled}
               />
-            </Suspense>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, color: 'var(--text-muted)', gap: 16 }}>
+                <div style={{ fontSize: 48, opacity: 0.5 }}>🔒</div>
+                <div style={{ fontSize: 16 }}>Please login to use the terminal</div>
+                <button
+                  onClick={() => setLoginOpen(true)}
+                  style={{ padding: '10px 24px', borderRadius: 6, border: 'none', backgroundColor: 'var(--accent-blue)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Login
+                </button>
+              </div>
+            )
+          )}
+          {activeTab === 'editor' && (
+            <CodeEditor
+              activeFile={activeFile}
+              onActiveFileChange={setActiveFile}
+              onFileSaved={handleFileSaved}
+            />
           )}
         </div>
       </div>

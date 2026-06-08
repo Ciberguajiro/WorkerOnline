@@ -3,7 +3,6 @@ import WorkspacePanel from './WorkspacePanel';
 import GitPanel from './GitPanel';
 import AIToolsPanel from './AIToolsPanel';
 import FileExplorer from './components/FileExplorer';
-import SessionsPanel from './components/SessionsPanel';
 
 interface WorkspaceItem {
   name: string;
@@ -21,8 +20,6 @@ interface Props {
   onFileSelect: (path: string) => void;
   onCloneRepo?: (url: string) => void;
   onCreateWorkspace?: (name: string) => void;
-  onConnectSession?: (sessionId: string) => void;
-  token: string;
 }
 
 const Sidebar: React.FC<Props> = ({
@@ -34,8 +31,6 @@ const Sidebar: React.FC<Props> = ({
   onFileSelect,
   onCloneRepo,
   onCreateWorkspace,
-  onConnectSession,
-  token,
 }) => {
   const [currentWs, setCurrentWs] = useState<WorkspaceItem | null>(null);
 
@@ -52,25 +47,16 @@ const Sidebar: React.FC<Props> = ({
             onWorkspaceChange={setCurrentWs}
             onCloneRepo={onCloneRepo}
             onCreateWorkspace={onCreateWorkspace}
-            token={token}
           />
           <GitPanel
             workspacePath={selectedWorkspace}
             branch={currentWs?.branch || ''}
             isGitRepo={currentWs?.isGitRepo || false}
-            token={token}
           />
           <AIToolsPanel onInjectCommand={onInjectCommand} />
-          {token && (
-            <SessionsPanel
-              token={token}
-              onConnectSession={onConnectSession ?? (() => {})}
-            />
-          )}
           {selectedWorkspace && (
             <FileExplorer
               workspace={selectedWorkspace.split('/').pop() || ''}
-              token={token}
               onFileSelect={onFileSelect}
             />
           )}

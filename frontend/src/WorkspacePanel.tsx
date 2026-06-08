@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { authFetch } from './hooks/useAuth';
+import { useSocket } from './contexts/SocketContext';
 import WorkspaceModal from './components/WorkspaceModal';
 
 interface WorkspaceItem {
@@ -16,7 +16,6 @@ interface Props {
   onFileSelect?: (path: string) => void;
   onCloneRepo?: (url: string) => void;
   onCreateWorkspace?: (name: string) => void;
-  token: string;
 }
 
 const WorkspacePanel: React.FC<Props> = ({
@@ -26,8 +25,8 @@ const WorkspacePanel: React.FC<Props> = ({
   onFileSelect,
   onCloneRepo,
   onCreateWorkspace,
-  token,
 }) => {
+  const { listWorkspaces, selectWorkspace } = useSocket();
   const [workspaces, setWorkspaces] = useState<WorkspaceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -39,15 +38,14 @@ const WorkspacePanel: React.FC<Props> = ({
     setLoading(true);
     setError('');
     try {
-      const res = await authFetch(token, '/api/workspaces');
-      const data = await res.json();
+      const data = await listWorkspaces();
       setWorkspaces(data.workspaces || []);
     } catch {
       setError('Failed to load workspaces');
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [listWorkspaces]);
 
   useEffect(() => {
     fetchWorkspaces();
@@ -56,6 +54,7 @@ const WorkspacePanel: React.FC<Props> = ({
   const handleSelect = (item: WorkspaceItem) => {
     onSelectWorkspace(item.path);
     onWorkspaceChange(item);
+    selectWorkspace(item.path);
   };
 
   const handleModalSubmit = (value: string) => {

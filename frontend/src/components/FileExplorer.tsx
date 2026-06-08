@@ -1,20 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { authFetch } from '../hooks/useAuth';
-
-interface FileTreeItem {
-  name: string;
-  path: string;
-  type: 'file' | 'directory';
-  children?: FileTreeItem[];
-}
+import { useSocket } from '../contexts/SocketContext';
+import type { FileTreeItem } from '../contexts/SocketContext';
 
 interface Props {
   workspace: string;
-  token: string;
   onFileSelect: (path: string) => void;
 }
 
-const FileExplorer: React.FC<Props> = ({ workspace, token, onFileSelect }) => {
+const FileExplorer: React.FC<Props> = ({ workspace, onFileSelect }) => {
+  const { socket, getFileTree } = useSocket();
   const [tree, setTree] = useState<FileTreeItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -22,25 +16,32 @@ const FileExplorer: React.FC<Props> = ({ workspace, token, onFileSelect }) => {
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
 
-  const fetchTree = useCallback(async () => {
+  const fetchTree = useCallback(() => {
     if (!workspace) return;
     setLoading(true);
     setError('');
-    try {
-      const res = await authFetch(token, `/api/files/tree?workspace=${encodeURIComponent(workspace)}`);
-      if (!res.ok) throw new Error('Failed to load file tree');
-      const data = await res.json();
-      setTree(data.tree || []);
-    } catch {
-      setError('Failed to load file tree');
-    } finally {
-      setLoading(false);
-    }
-  }, [workspace, token]);
+    getFileTree(workspace);
+    setLoading(false);
+  }, [workspace, getFileTree]);
 
   useEffect(() => {
     fetchTree();
   }, [fetchTree]);
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const treeUpdateHandler = (data: { tree: FileTreeItem[] }) => {
+      setTree(data.tree || []);
+      setLoading(false);
+    };
+
+    socket.on('file-tree:update', treeUpdateHandler);
+
+    return () => {
+      socket.off('file-tree:update', treeUpdateHandler);
+    };
+  }, [socket]);
 
   const toggleExpanded = (path: string) => {
     setExpanded((prev) => {

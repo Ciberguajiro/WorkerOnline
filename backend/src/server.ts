@@ -1,18 +1,16 @@
 import express from 'express';
 import { createServer } from 'http';
-import { WebSocketServer, WebSocket } from 'ws';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
 import fs from 'fs';
 import { exec, execSync } from 'child_process';
-import { TerminalSession } from './terminal';
-import { authRoutes, requireAuth, verifyToken } from './auth';
+import { authRoutes, requireAuth } from './auth';
 import { filesRoutes } from './files';
+import { initializeSocket } from './socket';
 
 const app = express();
 const server = createServer(app);
 const PORT = process.env.PORT || 3000;
-const WS_TIMEOUT_MS = parseInt(process.env.WS_TIMEOUT_MS || '900000', 10); // 15 min default
 
 app.use(express.json());
 
@@ -61,7 +59,7 @@ app.use((req, res, next) => {
 const frontendPath = path.join(__dirname, '../../frontend/dist');
 app.use(express.static(frontendPath));
 
-// ─── API Endpoints ───────────────────────────────────────────────────────────
+// ─── API Endpoints (kept as fallback) ────────────────────────────────────────
 
 interface WorkspaceItem {
   name: string;
@@ -73,21 +71,21 @@ interface WorkspaceItem {
 app.get('/api/workspaces', requireAuth, (_req, res) => {
   try {
     const items: WorkspaceItem[] = [];
-    
+
     if (!fs.existsSync(WORKSPACE_DIR)) {
       res.json({ workspaces: items });
       return;
     }
 
     const entries = fs.readdirSync(WORKSPACE_DIR, { withFileTypes: true });
-    
+
     for (const entry of entries) {
       if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
-      
+
       const itemPath = path.join(WORKSPACE_DIR, entry.name);
       const isGitRepo = fs.existsSync(path.join(itemPath, '.git'));
       let branch = '';
-      
+
       if (isGitRepo) {
         try {
           branch = execSync('git branch --show-current', { cwd: itemPath, timeout: 5000 })
@@ -96,10 +94,10 @@ app.get('/api/workspaces', requireAuth, (_req, res) => {
           branch = '';
         }
       }
-      
+
       items.push({ name: entry.name, path: itemPath, isGitRepo, branch });
     }
-    
+
     res.json({ workspaces: items });
   } catch (error) {
     console.error('Error listing workspaces:', error);
@@ -117,7 +115,6 @@ app.post('/api/exec', requireAuth, (req, res) => {
     return;
   }
 
-  // Basic command safety: block dangerous characters
   const blocked = [';', '&&', '||', '|', '`', '$', '>', '<'];
   const hasBlocked = blocked.some((c) => cmd.includes(c));
   if (hasBlocked) {
@@ -187,109 +184,35 @@ authRoutes(app);
 // ─── Files Routes ─────────────────────────────────────────────────────────────
 filesRoutes(app);
 
+// ─── Socket.io ────────────────────────────────────────────────────────────────
+const io = initializeSocket(server);
+
 // Catch-all: serve index.html for all non-static, non-API routes (SPA support)
 app.get('*', (_req, res) => {
   res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
-// Create WebSocket server
-const wss = new WebSocketServer({
-  server,
-  path: '/ws',
-  perMessageDeflate: true, // Enable for better compression
-});
-
-// Track active sessions for graceful shutdown
-const activeSessions = new Set<WebSocket>();
-
-// Handle WebSocket connections
-wss.on('connection', (ws: WebSocket, req) => {
-  const requestId = Math.random().toString(36).substring(2, 15);
-  const clientIp = req.socket.remoteAddress;
-
-  // Verify token from query param
-  const url = new URL(req.url || '', `http://${req.headers.host}`);
-  const token = url.searchParams.get('token');
-
-  if (!token) {
-    log('warn', 'WebSocket connection rejected - no token', { requestId, clientIp });
-    ws.close(1008, 'Authentication required');
-    return;
-  }
-
-  const decoded = verifyToken(token);
-  if (!decoded) {
-    log('warn', 'WebSocket connection rejected - invalid token', { requestId, clientIp });
-    ws.close(1008, 'Invalid token');
-    return;
-  }
-
-  activeSessions.add(ws);
-  log('info', 'New WebSocket connection', { requestId, clientIp, user: decoded.username });
-
-  // Inactivity timeout
-  let lastActivity = Date.now();
-  const activityInterval = setInterval(() => {
-    if (Date.now() - lastActivity > WS_TIMEOUT_MS) {
-      log('info', 'WebSocket timed out due to inactivity', { requestId });
-      ws.close(1001, 'Inactivity timeout');
-      clearInterval(activityInterval);
-    }
-  }, 60000);
-
-  ws.on('message', () => {
-    lastActivity = Date.now();
-  });
-
-  ws.on('close', () => {
-    activeSessions.delete(ws);
-    clearInterval(activityInterval);
-    log('info', 'WebSocket connection closed', { requestId });
-  });
-
-  ws.on('error', (error) => {
-    log('error', 'WebSocket error', { requestId, error: (error as Error).message });
-  });
-
-  const sessionName = url.searchParams.get('session') || undefined;
-
-  try {
-    const terminal = new TerminalSession(ws, sessionName);
-    log('info', 'Terminal session created successfully', { requestId, session: sessionName ?? 'none' });
-  } catch (error) {
-    log('error', 'Failed to create terminal session', { requestId, error: (error as Error).message });
-    ws.close(1011, 'Failed to create terminal');
-  }
-});
-
-// Error handling for WebSocket server
-wss.on('error', (error) => {
-  log('error', 'WebSocket server error', { error: error.message });
-});
 
 // Start server
 server.listen(PORT, () => {
   log('info', `🚀 Web Terminal Server running on http://localhost:${PORT}`);
-  log('info', `📡 WebSocket endpoint: ws://localhost:${PORT}/ws`);
+  log('info', `📡 Socket.io endpoint active`);
   log('info', `💻 Working directory: /workspace`);
 });
 
 // Graceful shutdown
 function gracefulShutdown(signal: string) {
   log('info', `${signal} received, shutting down gracefully`);
-  log('info', `Closing ${activeSessions.size} active WebSocket connections`);
 
-  for (const ws of activeSessions) {
-    ws.close(1001, 'Server shutting down');
-  }
-  activeSessions.clear();
+  io.close(() => {
+    log('info', 'Socket.io server closed');
+  });
 
   server.close(() => {
     log('info', 'Server closed');
     process.exit(0);
   });
 
-  // Force exit after 10s
   setTimeout(() => {
     log('error', 'Forced shutdown after timeout');
     process.exit(1);

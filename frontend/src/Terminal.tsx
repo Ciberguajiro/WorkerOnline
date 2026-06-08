@@ -1,31 +1,28 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import { Terminal as XTerm } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
+import { useSocket } from './contexts/SocketContext';
 import 'xterm/css/xterm.css';
 
 interface Props {
   injectedCommand?: string;
   commandId?: number;
   onCommandHandled?: () => void;
-  token?: string;
-  sessionId?: string;
-  isActive?: boolean;
 }
 
-const Terminal: React.FC<Props> = ({ injectedCommand, commandId = 0, onCommandHandled, token, sessionId, isActive = true }) => {
+const Terminal: React.FC<Props> = ({ injectedCommand, commandId = 0, onCommandHandled }) => {
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
-  const wsRef = useRef<WebSocket | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
-  const reconnectAttemptsRef = useRef(0);
-  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const unmountedRef = useRef(false);
-  const resizeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { socket, isConnected, terminalInput, terminalResize, terminalConnect } = useSocket();
+  const terminalReadyRef = useRef(false);
+
+  const sendData = useCallback((data: string) => {
+    terminalInput(data);
+  }, [terminalInput]);
 
   useEffect(() => {
-    if (!terminalRef.current || !token) return;
-
-    unmountedRef.current = false;
+    if (!terminalRef.current) return;
 
     const term = new XTerm({
       cursorBlink: true,
@@ -65,126 +62,103 @@ const Terminal: React.FC<Props> = ({ injectedCommand, commandId = 0, onCommandHa
     xtermRef.current = term;
     fitAddonRef.current = fitAddon;
 
-    const connect = () => {
-      if (unmountedRef.current) return;
+    term.onData((data) => {
+      sendData(data);
+    });
 
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const params = new URLSearchParams();
-      if (token) params.set('token', token);
-      if (sessionId) params.set('session', sessionId);
-      const wsUrl = `${protocol}//${window.location.host}/ws?${params.toString()}`;
-      const ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
+    return () => {
+      term.dispose();
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-      ws.onopen = () => {
-        reconnectAttemptsRef.current = 0;
-        term.write('\r\n\x1b[32m✓ Connected to Web Terminal\x1b[0m\r\n');
+  // Connect terminal via socket when socket becomes available
+  useEffect(() => {
+    if (!socket) return;
+    terminalConnect();
+    terminalReadyRef.current = true;
 
-        const dims = fitAddon.proposeDimensions();
-        if (dims) {
-          ws.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
-        }
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          if (msg.type === 'data') term.write(msg.data);
-        } catch {
-          term.write(event.data);
-        }
-      };
-
-      ws.onerror = () => {
-        term.write('\r\n\x1b[31m✗ WebSocket error\x1b[0m\r\n');
-      };
-
-      ws.onclose = () => {
-        if (unmountedRef.current) return;
-        const attempts = reconnectAttemptsRef.current;
-        const delay = Math.min(1000 * 2 ** attempts, 30000);
-        const secs = Math.round(delay / 1000);
-        term.write(`\r\n\x1b[33m⟳ Reconnecting in ${secs}s... (attempt ${attempts + 1})\x1b[0m\r\n`);
-        reconnectAttemptsRef.current = attempts + 1;
-        reconnectTimerRef.current = setTimeout(connect, delay);
-      };
-
-      term.onData((data) => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'data', data }));
-        }
-      });
+    const outputHandler = (data: string) => {
+      xtermRef.current?.write(data);
     };
 
-    connect();
+    socket.on('terminal:output', outputHandler);
 
+    const onReconnect = () => {
+      terminalConnect();
+      if (xtermRef.current) {
+        xtermRef.current.write('\r\n\x1b[32m✓ Reconnected\x1b[0m\r\n');
+      }
+    };
+    socket.io.on('reconnect', onReconnect);
+
+    return () => {
+      socket.off('terminal:output', outputHandler);
+      socket.io.off('reconnect', onReconnect);
+    };
+  }, [socket, terminalConnect]);
+
+  // Handle connection status display
+  useEffect(() => {
+    const term = xtermRef.current;
+    if (!term) return;
+    if (isConnected && terminalReadyRef.current) {
+      term.write('\r\n\x1b[32m✓ Connected to terminal\x1b[0m\r\n');
+    }
+  }, [isConnected]);
+
+  // Handle resize
+  useEffect(() => {
     const handleResize = () => {
-      if (resizeDebounceRef.current) clearTimeout(resizeDebounceRef.current);
-      resizeDebounceRef.current = setTimeout(() => {
-        if (!fitAddonRef.current) return;
-        try {
-          fitAddonRef.current.fit();
-          const dims = fitAddonRef.current.proposeDimensions();
-          if (dims && wsRef.current?.readyState === WebSocket.OPEN) {
-            wsRef.current.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
-          }
-        } catch {
-          // ignore resize errors during init
+      const fit = fitAddonRef.current;
+      if (!fit) return;
+      try {
+        fit.fit();
+        const dims = fit.proposeDimensions();
+        if (dims) {
+          terminalResize(dims.cols, dims.rows);
         }
-      }, 150);
+      } catch {
+        // Ignore resize errors during initialization
+      }
     };
 
     const resizeObserver = new ResizeObserver(() => {
-      window.requestAnimationFrame(handleResize);
+      window.requestAnimationFrame(() => {
+        handleResize();
+      });
     });
 
     if (terminalRef.current) {
       resizeObserver.observe(terminalRef.current);
     }
+
     window.addEventListener('resize', handleResize);
 
-    const handlePaste = async (e: ClipboardEvent) => {
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [terminalResize]);
+
+  // Handle paste
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
       e.preventDefault();
       const text = e.clipboardData?.getData('text');
-      if (text && wsRef.current?.readyState === WebSocket.OPEN) {
-        wsRef.current.send(JSON.stringify({ type: 'data', data: text }));
+      if (text) {
+        sendData(text);
       }
     };
     document.addEventListener('paste', handlePaste);
+    return () => document.removeEventListener('paste', handlePaste);
+  }, [sendData]);
 
-    return () => {
-      unmountedRef.current = true;
-      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
-      if (resizeDebounceRef.current) clearTimeout(resizeDebounceRef.current);
-      resizeObserver.disconnect();
-      window.removeEventListener('resize', handleResize);
-      document.removeEventListener('paste', handlePaste);
-      wsRef.current?.close();
-      term.dispose();
-    };
-  }, [token]);
-
-  // Inject commands from parent — only for the active terminal tab
+  // Inject commands from parent
   useEffect(() => {
-    if (!isActive || commandId === 0 || !injectedCommand) return;
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: 'data', data: injectedCommand }));
+    if (commandId > 0 && injectedCommand) {
+      sendData(injectedCommand);
       onCommandHandled?.();
     }
-  }, [commandId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (!isActive) return;
-    const ws = wsRef.current;
-    if (!ws || commandId === 0 || !injectedCommand) return;
-
-    const onOpen = () => {
-      ws.send(JSON.stringify({ type: 'data', data: injectedCommand }));
-      onCommandHandled?.();
-    };
-
-    ws.addEventListener('open', onOpen);
-    return () => ws.removeEventListener('open', onOpen);
   }, [commandId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
