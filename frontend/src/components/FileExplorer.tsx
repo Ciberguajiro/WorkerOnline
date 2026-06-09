@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSocket } from '../contexts/SocketContext';
 import type { FileTreeItem } from '../contexts/SocketContext';
+import { useAuth, authFetch } from '../hooks/useAuth';
 
 interface Props {
   workspace: string;
@@ -9,6 +10,7 @@ interface Props {
 
 const FileExplorer: React.FC<Props> = ({ workspace, onFileSelect }) => {
   const { socket, getFileTree } = useSocket();
+  const { token } = useAuth();
   const [tree, setTree] = useState<FileTreeItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -54,6 +56,7 @@ const FileExplorer: React.FC<Props> = ({ workspace, onFileSelect }) => {
 
   const handleNewFile = async (e: React.MouseEvent, dirPath: string) => {
     e.stopPropagation();
+    if (!token) return;
     const name = window.prompt('New file name:');
     if (!name) return;
     const filePath = `${dirPath}/${name}`;
@@ -67,6 +70,7 @@ const FileExplorer: React.FC<Props> = ({ workspace, onFileSelect }) => {
 
   const handleNewDir = async (e: React.MouseEvent, dirPath: string) => {
     e.stopPropagation();
+    if (!token) return;
     const name = window.prompt('New folder name:');
     if (!name) return;
     const newPath = `${dirPath}/${name}`;
@@ -80,6 +84,7 @@ const FileExplorer: React.FC<Props> = ({ workspace, onFileSelect }) => {
 
   const handleDelete = async (e: React.MouseEvent, item: FileTreeItem) => {
     e.stopPropagation();
+    if (!token) return;
     if (!window.confirm(`Delete ${item.type === 'directory' ? 'folder' : 'file'} "${item.name}"?`)) return;
     await authFetch(token, '/api/files', {
       method: 'DELETE',
@@ -96,6 +101,7 @@ const FileExplorer: React.FC<Props> = ({ workspace, onFileSelect }) => {
   };
 
   const commitRename = async (item: FileTreeItem) => {
+    if (!token) return;
     if (!renameValue || renameValue === item.name) {
       setRenamingPath(null);
       return;

@@ -26,6 +26,7 @@ const SocketContext = createContext<SocketContextValue>({
   sessionId: null,
 });
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useSocketContext() {
   return useContext(SocketContext);
 }
@@ -121,6 +122,7 @@ export interface UseSocketReturn {
   terminalConnect: (cwd?: string) => void;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useSocket(): UseSocketReturn {
   const { socket, isConnected, sessionId } = useSocketContext();
 
